@@ -137,26 +137,6 @@ public partial class MyPage : ContentPage, INavigationAware
 
 ## 🎨 How It Works
 
-### The Problem
-
-Default MAUI navigation on Android and Windows can show a black flash during page transitions because:
-1. The old page is removed from the visual tree
-2. There's a brief moment where nothing is rendered
-3. Then the new page appears
-
-This creates a jarring user experience.
-
-### The Solution
-
-**LightNavigation** uses custom platform handlers that:
-
-1. **Keep both pages visible** during the transition
-2. **Add the new page** on top of the old page
-3. **Animate** the new page into position
-4. **Remove the old page** only after the new page is fully rendered
-
-This ensures there's always something visible on screen - **no black flash!**
-
 ### Platform-Specific Implementations
 
 #### Android

@@ -14,7 +14,7 @@ namespace LightNavigation
 
         /// <summary>
         /// Called when this page is removed from the navigation stack (no longer in memory).
-        /// Use this to clean up resources, unsubscribe from events, etc.
+        /// Use this to clean up resources, unsubscribe from events, call Dispose() etc.
         /// </summary>
         void OnRemoved();
 

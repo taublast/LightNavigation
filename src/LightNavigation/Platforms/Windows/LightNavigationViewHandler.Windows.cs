@@ -293,7 +293,7 @@ namespace LightNavigation.Platform
 
                     Debug.WriteLine($"{TAG} OLDVIEW visibility: {oldView.Visibility}");
 
-                    // Add new view on top (fully visible - no black flash!)
+                    // Add new view on top (fully visible)
                     container.Children.Add(newView);
                     newView.Visibility = WVisibility.Visible;
 
@@ -348,7 +348,7 @@ namespace LightNavigation.Platform
                                     t.X = 0;
                                 }
                                 oldView.Visibility = WVisibility.Collapsed;
-                                Debug.WriteLine($"{TAG} ✅ Animation complete - old view hidden - NO BLACK FLASH!");
+                                Debug.WriteLine($"{TAG} ✅ Animation complete - old view hidden");
 
                                 newAware?.OnTopmost();
                                 oldAware?.OnRemoved();
@@ -361,7 +361,6 @@ namespace LightNavigation.Platform
                         {
                             // No animation - hide old view immediately
                             oldView.Visibility = WVisibility.Collapsed;
-                            Debug.WriteLine($"{TAG} ✅ NO BLACK FLASH - seamless transition!");
 
                             newAware?.OnTopmost();
                             oldAware?.OnRemoved();
@@ -492,7 +491,7 @@ namespace LightNavigation.Platform
                             newView.Opacity = 1;
                             newView.Visibility = WVisibility.Visible;
                             ((Microsoft.UI.Xaml.Media.TranslateTransform)newView.RenderTransform).X = 0;
-                            Debug.WriteLine($"{TAG} ✅ Pop complete - no black flash!");
+                            Debug.WriteLine($"{TAG} ✅ Pop complete");
 
                             oldAware?.OnRemoved();
                             newAware?.OnTopmost();
@@ -559,7 +558,7 @@ namespace LightNavigation.Platform
                         }
                     }
 
-                    Debug.WriteLine($"{TAG} ✅ PopToRoot complete - no black flash!");
+                    Debug.WriteLine($"{TAG} ✅ PopToRoot complete");
                     tcs.SetResult(true);
                 });
 
