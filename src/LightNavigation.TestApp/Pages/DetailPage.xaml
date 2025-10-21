@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="LightNavigation.TestApp.Pages.DetailPage"
+             Title="Detail Page"
+             BackgroundColor="#E8F5E9">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="30,20" Spacing="20">
+
+            <!-- Header -->
+            <Border Padding="20"
+                    BackgroundColor="#4CAF50"
+                    StrokeThickness="0">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="12"/>
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="5">
+                    <Label x:Name="TitleLabel"
+                           Text="📄 Detail Page"
+                           FontSize="24"
+                           FontAttributes="Bold"
+                           TextColor="White"
+                           HorizontalOptions="Center" />
+                    <Label x:Name="PageNumberLabel"
+                           Text="Page #0"
+                           FontSize="14"
+                           TextColor="#E0E0E0"
+                           HorizontalOptions="Center" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Page Info -->
+            <Border Padding="15"
+                    BackgroundColor="White"
+                    StrokeThickness="1"
+                    Stroke="#C8E6C9">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8"/>
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="Page Information"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="#2E7D32" />
+
+                    <HorizontalStackLayout Spacing="10">
+                        <Label Text="Created at:"
+                               FontSize="12"
+                               TextColor="#666"
+                               VerticalOptions="Center" />
+                        <Label x:Name="CreatedTimeLabel"
+                               Text="--:--:--"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+
+                    <HorizontalStackLayout Spacing="10">
+                        <Label Text="Stack Position:"
+                               FontSize="12"
+                               TextColor="#666"
+                               VerticalOptions="Center" />
+                        <Label x:Name="StackPositionLabel"
+                               Text="?"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+
+                    <HorizontalStackLayout Spacing="10">
+                        <Label Text="Total in Stack:"
+                               FontSize="12"
+                               TextColor="#666"
+                               VerticalOptions="Center" />
+                        <Label x:Name="StackCountLabel"
+                               Text="?"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Navigation Actions -->
+            <Label Text="Navigation Actions"
+                   FontSize="16"
+                   FontAttributes="Bold"
+                   TextColor="#2E7D32" />
+
+            <Button Text="Push Another Detail Page"
+                    Clicked="OnPushAnotherClicked"
+                    BackgroundColor="#4CAF50"
+                    TextColor="White"
+                    CornerRadius="8"
+                    HeightRequest="50" />
+
+            <Button Text="Pop Back (Animated)"
+                    Clicked="OnPopClicked"
+                    BackgroundColor="#FF9800"
+                    TextColor="White"
+                    CornerRadius="8"
+                    HeightRequest="50" />
+
+            <Button Text="Pop Back (No Animation)"
+                    Clicked="OnPopNoAnimClicked"
+                    BackgroundColor="#F57C00"
+                    TextColor="White"
+                    CornerRadius="8"
+                    HeightRequest="50" />
+
+            <Button Text="Pop to Root"
+                    Clicked="OnPopToRootClicked"
+                    BackgroundColor="#E64A19"
+                    TextColor="White"
+                    CornerRadius="8"
+                    HeightRequest="50" />
+
+            <!-- Lifecycle Events -->
+            <Label Text="Lifecycle Events"
+                   FontSize="16"
+                   FontAttributes="Bold"
+                   TextColor="#2E7D32"
+                   Margin="0,20,0,0" />
+
+            <Border Padding="10"
+                    BackgroundColor="#1E1E1E"
+                    StrokeThickness="0"
+                    HeightRequest="150">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8"/>
+                </Border.StrokeShape>
+                <ScrollView>
+                    <Label x:Name="EventLogLabel"
+                           Text="Events will appear here..."
+                           FontSize="11"
+                           FontFamily="Courier New"
+                           TextColor="#00FF00"
+                           LineBreakMode="WordWrap" />
+                </ScrollView>
+            </Border>
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

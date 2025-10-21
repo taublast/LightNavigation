@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="LightNavigation.TestApp.Pages.LifecycleAwarePage"
+             Title="Lifecycle Aware Page"
+             BackgroundColor="#FFF3E0">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="30,20" Spacing="20">
+
+            <!-- Header -->
+            <Border Padding="20"
+                    BackgroundColor="#FF9800"
+                    StrokeThickness="0">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="12"/>
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="5">
+                    <Label Text="🔔 INavigationAware Page"
+                           FontSize="24"
+                           FontAttributes="Bold"
+                           TextColor="White"
+                           HorizontalOptions="Center" />
+                    <Label x:Name="PageNumberLabel"
+                           Text="Page #0"
+                           FontSize="14"
+                           TextColor="#FFECB3"
+                           HorizontalOptions="Center" />
+                    <Label Text="This page implements INavigationAware"
+                           FontSize="12"
+                           TextColor="#FFECB3"
+                           HorizontalOptions="Center" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Lifecycle Status -->
+            <Border Padding="15"
+                    BackgroundColor="White"
+                    StrokeThickness="1"
+                    Stroke="#FFE0B2">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8"/>
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="Navigation Lifecycle Status"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="#E65100" />
+
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="8">
+                        <!-- OnPushing -->
+                        <Label Text="OnPushing:" Grid.Row="0" Grid.Column="0" FontSize="12" TextColor="#666" VerticalOptions="Center" />
+                        <Border Grid.Row="0" Grid.Column="1" Padding="8,4" BackgroundColor="#E0E0E0" StrokeThickness="0">
+                            <Border.StrokeShape>
+                                <RoundRectangle CornerRadius="4"/>
+                            </Border.StrokeShape>
+                            <Label x:Name="OnPushingLabel" Text="Not called" FontSize="11" />
+                        </Border>
+
+                        <!-- OnTopmost -->
+                        <Label Text="OnTopmost:" Grid.Row="1" Grid.Column="0" FontSize="12" TextColor="#666" VerticalOptions="Center" />
+                        <Border Grid.Row="1" Grid.Column="1" Padding="8,4" BackgroundColor="#E0E0E0" StrokeThickness="0">
+                            <Border.StrokeShape>
+                                <RoundRectangle CornerRadius="4"/>
+                            </Border.StrokeShape>
+                            <Label x:Name="OnTopmostLabel" Text="Not called" FontSize="11" />
+                        </Border>
+
+                        <!-- OnPopping -->
+                        <Label Text="OnPopping:" Grid.Row="2" Grid.Column="0" FontSize="12" TextColor="#666" VerticalOptions="Center" />
+                        <Border Grid.Row="2" Grid.Column="1" Padding="8,4" BackgroundColor="#E0E0E0" StrokeThickness="0">
+                            <Border.StrokeShape>
+                                <RoundRectangle CornerRadius="4"/>
+                            </Border.StrokeShape>
+                            <Label x:Name="OnPoppingLabel" Text="Not called" FontSize="11" />
+                        </Border>
+
+                        <!-- OnRemoved -->
+                        <Label Text="OnRemoved:" Grid.Row="3" Grid.Column="0" FontSize="12" TextColor="#666" VerticalOptions="Center" />
+                        <Border Grid.Row="3" Grid.Column="1" Padding="8,4" BackgroundColor="#E0E0E0" StrokeThickness="0">
+                            <Border.StrokeShape>
+                                <RoundRectangle CornerRadius="4"/>
+                            </Border.StrokeShape>
+                            <Label x:Name="OnRemovedLabel" Text="Not called" FontSize="11" />
+                        </Border>
+                    </Grid>
+
+                    <BoxView HeightRequest="1" Color="#FFE0B2" Margin="0,10" />
+
+                    <HorizontalStackLayout Spacing="10">
+                        <Label Text="Call Count:"
+                               FontSize="12"
+                               TextColor="#666"
+                               VerticalOptions="Center" />
+                        <Label x:Name="CallCountLabel"
+                               Text="0 total calls"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Navigation Actions -->
+            <Label Text="Navigation Actions"
+                   FontSize="16"
+                   FontAttributes="Bold"
+                   TextColor="#E65100" />
+
+            <Button Text="Push Another Aware Page"
+                    Clicked="OnPushAnotherClicked"
+                    BackgroundColor="#FF9800"
+                    TextColor="White"
+                    CornerRadius="8"
+                    HeightRequest="50" />
+
+            <Button Text="Push Regular Detail Page"
+                    Clicked="OnPushDetailClicked"
+                    BackgroundColor="#FFA726"
+                    TextColor="White"
+                    CornerRadius="8"
+                    HeightRequest="50" />
+
+            <Button Text="Pop Back"
+                    Clicked="OnPopClicked"
+                    BackgroundColor="#F57C00"
+                    TextColor="White"
+                    CornerRadius="8"
+                    HeightRequest="50" />
+
+            <Button Text="Pop to Root"
+                    Clicked="OnPopToRootClicked"
+                    BackgroundColor="#E64A19"
+                    TextColor="White"
+                    CornerRadius="8"
+                    HeightRequest="50" />
+
+            <!-- Full Event Log -->
+            <Label Text="Complete Event Log"
+                   FontSize="16"
+                   FontAttributes="Bold"
+                   TextColor="#E65100"
+                   Margin="0,20,0,0" />
+
+            <Border Padding="10"
+                    BackgroundColor="#1E1E1E"
+                    StrokeThickness="0"
+                    HeightRequest="200">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8"/>
+                </Border.StrokeShape>
+                <ScrollView>
+                    <Label x:Name="EventLogLabel"
+                           Text="Lifecycle events will appear here..."
+                           FontSize="11"
+                           FontFamily="Courier New"
+                           TextColor="#00FF00"
+                           LineBreakMode="WordWrap" />
+                </ScrollView>
+            </Border>
+
+            <Label Text="💡 Watch how OnPushing/OnTopmost are called when navigating, and OnPopping/OnRemoved when going back!"
+                   FontSize="12"
+                   TextColor="#666"
+                   LineBreakMode="WordWrap"
+                   HorizontalTextAlignment="Center"
+                   Margin="0,10,0,0" />
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

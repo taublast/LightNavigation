@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="LightNavigation.TestApp.MainPage"
+             Title="LightNavigation Test"
+             BackgroundColor="#232323">
+
+    <ScrollView>
+
+        <VerticalStackLayout Padding="30,20" Spacing="15">
+
+            <!-- Header -->
+            <Border Padding="20"
+                    BackgroundColor="#6200EE"
+                    StrokeThickness="0"
+                    Margin="0,0,0,20">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="12"/>
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="5">
+                    <Label Text="🚀 LightNavigation Test App"
+                           FontSize="24"
+                           FontAttributes="Bold"
+                           TextColor="White"
+                           HorizontalOptions="Center" />
+                    <Label Text="Test smooth navigation without black flash"
+                           FontSize="14"
+                           TextColor="#E0E0E0"
+                           HorizontalOptions="Center" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Navigation Tests Section -->
+            <Label Text="Basic Navigation Tests"
+                   FontSize="18"
+                   FontAttributes="Bold"
+                   Margin="0,10,0,5" />
+
+            <Border Padding="0"
+                    BackgroundColor="White"
+                    StrokeThickness="1"
+                    Stroke="#E0E0E0">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8"/>
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="0">
+
+                    <Button Text="Navigate to Detail Page (Animated)"
+                            Clicked="OnNavigateDetailClicked"
+                            BackgroundColor="#6200EE"
+                            TextColor="White"
+                            Margin="10"
+                            CornerRadius="8"
+                            HeightRequest="50" />
+
+                    <BoxView HeightRequest="1" Color="#E0E0E0" Margin="10,0" />
+
+                    <Button Text="Navigate to Detail Page (No Animation)"
+                            Clicked="OnNavigateDetailNoAnimClicked"
+                            BackgroundColor="#03DAC6"
+                            TextColor="#000000"
+                            Margin="10"
+                            CornerRadius="8"
+                            HeightRequest="50" />
+
+                    <BoxView HeightRequest="1" Color="#E0E0E0" Margin="10,0" />
+
+                    <Button Text="Navigate to INavigationAware Page"
+                            Clicked="OnNavigateAwareClicked"
+                            BackgroundColor="#018786"
+                            TextColor="White"
+                            Margin="10"
+                            CornerRadius="8"
+                            HeightRequest="50" />
+
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Multi-Level Navigation Tests -->
+            <Label Text="Multi-Level Navigation Tests"
+                   FontSize="18"
+                   FontAttributes="Bold"
+                   Margin="0,20,0,5" />
+
+            <Border Padding="0"
+                    BackgroundColor="White"
+                    StrokeThickness="1"
+                    Stroke="#E0E0E0">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8"/>
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="0">
+
+                    <Button Text="Push 3 Pages in Sequence"
+                            Clicked="OnPushThreePagesClicked"
+                            BackgroundColor="#BB86FC"
+                            TextColor="#000000"
+                            Margin="10"
+                            CornerRadius="8"
+                            HeightRequest="50" />
+
+                    <BoxView HeightRequest="1" Color="#E0E0E0" Margin="10,0" />
+
+                    <Button Text="Push 5 Pages Rapidly"
+                            Clicked="OnPushFiveRapidlyClicked"
+                            BackgroundColor="#CF6679"
+                            TextColor="White"
+                            Margin="10"
+                            CornerRadius="8"
+                            HeightRequest="50" />
+
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Stress Tests -->
+            <Label Text="Stress Tests"
+                   FontSize="18"
+                   FontAttributes="Bold"
+                   Margin="0,20,0,5" />
+
+            <Border Padding="0"
+                    BackgroundColor="White"
+                    StrokeThickness="1"
+                    Stroke="#E0E0E0">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8"/>
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="0">
+
+                    <Button Text="Rapid Push/Pop Test (10 cycles)"
+                            Clicked="OnRapidPushPopClicked"
+                            BackgroundColor="#FF6F00"
+                            TextColor="White"
+                            Margin="10"
+                            CornerRadius="8"
+                            HeightRequest="50" />
+
+                    <BoxView HeightRequest="1" Color="#E0E0E0" Margin="10,0" />
+
+                    <Button Text="Random Animation Push/Pop (20 cycles)"
+                            Clicked="OnRandomAnimationPushPopClicked"
+                            BackgroundColor="#F57F17"
+                            TextColor="White"
+                            Margin="10"
+                            CornerRadius="8"
+                            HeightRequest="50" />
+
+                    <BoxView HeightRequest="1" Color="#E0E0E0" Margin="10,0" />
+
+                    <Button Text="Deep Stack + Rapid PopToRoot (5 cycles)"
+                            Clicked="OnRapidPopToRootClicked"
+                            BackgroundColor="#E65100"
+                            TextColor="White"
+                            Margin="10"
+                            CornerRadius="8"
+                            HeightRequest="50" />
+
+                    <BoxView HeightRequest="1" Color="#E0E0E0" Margin="10,0" />
+
+                    <Button Text="Mixed Animation Torture Test (30 ops)"
+                            Clicked="OnMixedAnimationTortureClicked"
+                            BackgroundColor="#BF360C"
+                            TextColor="White"
+                            Margin="10"
+                            CornerRadius="8"
+                            HeightRequest="50" />
+
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Stack Info -->
+            <Label Text="Navigation Stack Info"
+                   FontSize="18"
+                   FontAttributes="Bold"
+                   Margin="0,20,0,5" />
+
+            <Border Padding="15"
+                    BackgroundColor="White"
+                    StrokeThickness="1"
+                    Stroke="#E0E0E0">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8"/>
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="5">
+                    <Label x:Name="StackCountLabel"
+                           Text="Stack Count: 1"
+                           FontSize="14"
+                           FontAttributes="Bold" />
+                    <Label x:Name="CurrentPageLabel"
+                           Text="Current Page: MainPage"
+                           FontSize="12"
+                           TextColor="#666" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Log Output -->
+            <Label Text="Navigation Log"
+                   FontSize="18"
+                   FontAttributes="Bold"
+                   Margin="0,20,0,5" />
+
+            <Border Padding="10"
+                    BackgroundColor="#1E1E1E"
+                    StrokeThickness="0"
+                    HeightRequest="200">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8"/>
+                </Border.StrokeShape>
+                <ScrollView>
+                    <Label x:Name="LogLabel"
+                           Text="Log will appear here..."
+                           FontSize="11"
+                           FontFamily="Courier New"
+                           TextColor="#00FF00"
+                           LineBreakMode="WordWrap" />
+                </ScrollView>
+            </Border>
+
+            <Button Text="Clear Log"
+                    Clicked="OnClearLogClicked"
+                    BackgroundColor="#333333"
+                    TextColor="White"
+                    CornerRadius="8"
+                    HeightRequest="40" />
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>
