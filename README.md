@@ -1,13 +1,12 @@
 # LightNavigation for .NET MAUI
 
-A subclassed `NavigationPage` with it's own stack implementation for .NET MAUI with animated transitions. 
-This nuget is intended for those who use NavigationPage without MAUI Shell.
+A subclassed `NavigationPage` bringing custom animated transitions and page lifecycle events.
 
 ## 🚀 Features
 
-- ✅ **Queue-Based Navigation** - Prevents concurrent navigation operations issues
-- ✅ **Lifecycle Awareness** - `INavigationAware` interface for navigation lifecycle callbacks, dispose resources properly
 - ✅ **Smooth Animations** - Platform-native animations with customizations
+- ✅ **Lifecycle Awareness** - `INavigationAware` interface for navigation lifecycle callbacks, dispose resources properly
+- ✅ **Queue-Based Navigation** - Prevents concurrent navigation operations issues
 - ✅ **Zero Dependencies** - No third-party libraries required
 
 ## 📦 Installation
