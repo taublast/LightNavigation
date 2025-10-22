@@ -21,6 +21,35 @@ namespace LightNavigation
     public class LightNavigationPage : NavigationPage
     {
         /// <summary>
+        /// Attached property for specifying the transition animation type for a page.
+        /// Usage in XAML: ln:LightNavigationPage.Transition="Fade"
+        /// </summary>
+        public static readonly BindableProperty TransitionProperty = BindableProperty.CreateAttached(
+            propertyName: "Transition",
+            returnType: typeof(AnimationType),
+            declaringType: typeof(LightNavigationPage),
+            defaultValue: AnimationType.Default,
+            defaultBindingMode: BindingMode.OneWay);
+
+        /// <summary>
+        /// Gets the transition animation type for the specified page.
+        /// This is the getter for the attached property.
+        /// </summary>
+        public static AnimationType GetTransition(BindableObject target)
+        {
+            return (AnimationType)target.GetValue(TransitionProperty);
+        }
+
+        /// <summary>
+        /// Sets the transition animation type for the specified page.
+        /// This is the setter for the attached property.
+        /// </summary>
+        public static void SetTransition(BindableObject target, AnimationType value)
+        {
+            target.SetValue(TransitionProperty, value);
+        }
+
+        /// <summary>
         /// Creates a new instance of LightNavigationPage with the specified root page.
         /// </summary>
         /// <param name="root">The root page to display in the navigation stack.</param>
