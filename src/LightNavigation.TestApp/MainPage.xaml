@@ -30,6 +30,85 @@
                 </VerticalStackLayout>
             </Border>
 
+            <!-- Transition Selector -->
+            <Label Text="Transition Settings"
+                   FontSize="18"
+                   FontAttributes="Bold"
+                   Margin="0,10,0,5" />
+
+            <Border Padding="15"
+                    BackgroundColor="White"
+                    StrokeThickness="1"
+                    Stroke="#E0E0E0">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8"/>
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="10">
+                    <!-- Global Default Transition -->
+                    <Label Text="Global Default Transition:"
+                           FontSize="14"
+                           FontAttributes="Bold" />
+                    <Label x:Name="GlobalDefaultLabel"
+                           Text="Default (Platform Native)"
+                           FontSize="12"
+                           TextColor="#666"
+                           Margin="0,0,0,5" />
+                    <Picker x:Name="DefaultTransitionPicker"
+                            Title="Set Global Default"
+                            SelectedIndexChanged="OnDefaultTransitionChanged"
+                            FontSize="14">
+                        <Picker.Items>
+                            <x:String>Default</x:String>
+                            <x:String>None</x:String>
+                            <x:String>SlideFromRight</x:String>
+                            <x:String>SlideFromLeft</x:String>
+                            <x:String>SlideFromBottom</x:String>
+                            <x:String>SlideFromTop</x:String>
+                            <x:String>ParallaxSlideFromRight</x:String>
+                            <x:String>ParallaxSlideFromLeft</x:String>
+                            <x:String>Fade</x:String>
+                            <x:String>ZoomIn</x:String>
+                            <x:String>ZoomOut</x:String>
+                            <x:String>WhirlIn</x:String>
+                            <x:String>WhirlIn3</x:String>
+                        </Picker.Items>
+                    </Picker>
+
+                    <BoxView HeightRequest="1" Color="#E0E0E0" Margin="0,10" />
+
+                    <!-- Per-Page Transition -->
+                    <Label Text="Per-Page Transition Override:"
+                           FontSize="14"
+                           FontAttributes="Bold" />
+                    <Label x:Name="CurrentTransitionLabel"
+                           Text="Default"
+                           FontSize="16"
+                           TextColor="#6200EE"
+                           FontAttributes="Bold" />
+
+                    <Picker x:Name="TransitionPicker"
+                            Title="Choose Per-Page Transition"
+                            SelectedIndexChanged="OnTransitionChanged"
+                            FontSize="14">
+                        <Picker.Items>
+                            <x:String>Default</x:String>
+                            <x:String>None</x:String>
+                            <x:String>SlideFromRight</x:String>
+                            <x:String>SlideFromLeft</x:String>
+                            <x:String>SlideFromBottom</x:String>
+                            <x:String>SlideFromTop</x:String>
+                            <x:String>ParallaxSlideFromRight</x:String>
+                            <x:String>ParallaxSlideFromLeft</x:String>
+                            <x:String>Fade</x:String>
+                            <x:String>ZoomIn</x:String>
+                            <x:String>ZoomOut</x:String>
+                            <x:String>WhirlIn</x:String>
+                            <x:String>WhirlIn3</x:String>
+                        </Picker.Items>
+                    </Picker>
+                </VerticalStackLayout>
+            </Border>
+
             <!-- Navigation Tests Section -->
             <Label Text="Basic Navigation Tests"
                    FontSize="18"
@@ -105,6 +184,26 @@
                             Clicked="OnPushFiveRapidlyClicked"
                             BackgroundColor="#CF6679"
                             TextColor="White"
+                            Margin="10"
+                            CornerRadius="8"
+                            HeightRequest="50" />
+
+                    <BoxView HeightRequest="1" Color="#E0E0E0" Margin="10,0" />
+
+                    <Button Text="PopToRoot (Animated)"
+                            Clicked="OnPopToRootAnimatedClicked"
+                            BackgroundColor="#4CAF50"
+                            TextColor="White"
+                            Margin="10"
+                            CornerRadius="8"
+                            HeightRequest="50" />
+
+                    <BoxView HeightRequest="1" Color="#E0E0E0" Margin="10,0" />
+
+                    <Button Text="PopToRoot (No Animation)"
+                            Clicked="OnPopToRootNoAnimClicked"
+                            BackgroundColor="#8BC34A"
+                            TextColor="#000000"
                             Margin="10"
                             CornerRadius="8"
                             HeightRequest="50" />

@@ -58,5 +58,46 @@ public enum AnimationType
     /// <summary>
     /// Current page zooms out to center.
     /// </summary>
-    ZoomOut
+    ZoomOut,
+
+    /// <summary>
+    /// New page whirls in with rotation and zoom effect.
+    /// </summary>
+    WhirlIn,
+
+    /// <summary>
+    /// New page whirls in with 3 full rotations and zoom effect.
+    /// </summary>
+    WhirlIn3
+}
+
+/// <summary>
+/// Animation easing/interpolation types for transitions.
+/// </summary>
+public enum TransitionEasing
+{
+    /// <summary>
+    /// Use the default easing for the transition (platform-specific).
+    /// </summary>
+    Default = 0,
+
+    /// <summary>
+    /// Linear interpolation (constant speed).
+    /// </summary>
+    Linear,
+
+    /// <summary>
+    /// Decelerate interpolation (starts fast, slows down at the end).
+    /// </summary>
+    Decelerate,
+
+    /// <summary>
+    /// Accelerate interpolation (starts slow, speeds up at the end).
+    /// </summary>
+    Accelerate,
+
+    /// <summary>
+    /// Accelerate-decelerate interpolation (slow-fast-slow).
+    /// </summary>
+    AccelerateDecelerate
 }

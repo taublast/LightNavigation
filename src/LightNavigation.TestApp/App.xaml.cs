@@ -8,12 +8,11 @@ public partial class App : Application
 	{
 		InitializeComponent();
 
-		// Use LightNavigationPage instead of default AppShell
-		MainPage = new LightNavigationPage(new MainPage());
 	}
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-		return new Window(MainPage!);
+        // Use LightNavigationPage instead of default AppShell
+		return new Window(new LightNavigationPage(new MainPage()));
 	}
 }

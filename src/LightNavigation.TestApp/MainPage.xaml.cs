@@ -7,11 +7,16 @@ public partial class MainPage : ContentPage
 {
     private readonly StringBuilder _logBuilder = new StringBuilder();
     private int _navigationCount = 0;
+    private AnimationType _currentTransition = AnimationType.Default;
 
     public MainPage()
     {
         InitializeComponent();
         Log("MainPage initialized");
+
+        // Set default values in pickers
+        DefaultTransitionPicker.SelectedIndex = 0; // Default
+        TransitionPicker.SelectedIndex = 0; // Default
     }
 
     protected override void OnAppearing()
@@ -55,38 +60,105 @@ public partial class MainPage : ContentPage
         });
     }
 
+    private void OnDefaultTransitionChanged(object sender, EventArgs e)
+    {
+        if (DefaultTransitionPicker.SelectedIndex == -1)
+            return;
+
+        var selected = DefaultTransitionPicker.SelectedItem.ToString();
+        var transition = Enum.Parse<AnimationType>(selected);
+        LightNavigationPage.SetDefaultTransition(transition);
+
+        if (transition == AnimationType.Default)
+        {
+            GlobalDefaultLabel.Text = "Default (Platform Native)";
+        }
+        else
+        {
+            GlobalDefaultLabel.Text = $"{selected} (applies to all pages unless overridden)";
+        }
+
+        Log($"🌍 Global default transition set to: {selected}");
+    }
+
+    private void OnTransitionChanged(object sender, EventArgs e)
+    {
+        if (TransitionPicker.SelectedIndex == -1)
+            return;
+
+        var selected = TransitionPicker.SelectedItem.ToString();
+        _currentTransition = Enum.Parse<AnimationType>(selected);
+        CurrentTransitionLabel.Text = selected;
+
+        if (_currentTransition == AnimationType.Default)
+        {
+            Log($"🎨 Per-page transition: {selected} (will use global default)");
+        }
+        else
+        {
+            Log($"🎨 Per-page transition: {selected} (overrides global default)");
+        }
+    }
+
+    private Page CreateDetailPageWithTransition()
+    {
+        var page = new DetailPage(_navigationCount++);
+
+        // Only set the attached property if user selected a specific override
+        // If "Default" is selected, don't set it - let it use the global default
+        if (_currentTransition != AnimationType.Default)
+        {
+            LightNavigationPage.SetTransition(page, _currentTransition);
+        }
+
+        return page;
+    }
+
+    private Page CreateLifecyclePageWithTransition()
+    {
+        var page = new LifecycleAwarePage(_navigationCount++, LogCallback);
+
+        // Only set the attached property if user selected a specific override
+        if (_currentTransition != AnimationType.Default)
+        {
+            LightNavigationPage.SetTransition(page, _currentTransition);
+        }
+
+        return page;
+    }
+
     private async void OnNavigateDetailClicked(object sender, EventArgs e)
     {
-        Log("→ Navigating to DetailPage (animated)");
-        await Navigation.PushAsync(new DetailPage(_navigationCount++), animated: true);
+        Log($"→ Navigating to DetailPage (animated) with {_currentTransition}");
+        await Navigation.PushAsync(CreateDetailPageWithTransition(), animated: true);
         UpdateStackInfo();
     }
 
     private async void OnNavigateDetailNoAnimClicked(object sender, EventArgs e)
     {
-        Log("→ Navigating to DetailPage (no animation)");
-        await Navigation.PushAsync(new DetailPage(_navigationCount++), animated: false);
+        Log($"→ Navigating to DetailPage (no animation) with {_currentTransition}");
+        await Navigation.PushAsync(CreateDetailPageWithTransition(), animated: false);
         UpdateStackInfo();
     }
 
     private async void OnNavigateAwareClicked(object sender, EventArgs e)
     {
-        Log("→ Navigating to LifecycleAwarePage");
-        await Navigation.PushAsync(new LifecycleAwarePage(_navigationCount++, LogCallback), animated: true);
+        Log($"→ Navigating to LifecycleAwarePage with {_currentTransition}");
+        await Navigation.PushAsync(CreateLifecyclePageWithTransition(), animated: true);
         UpdateStackInfo();
     }
 
     private async void OnPushThreePagesClicked(object sender, EventArgs e)
     {
-        Log("→ Pushing 3 pages in sequence...");
+        Log($"→ Pushing 3 pages in sequence with {_currentTransition}...");
 
-        await Navigation.PushAsync(new DetailPage(_navigationCount++), animated: true);
+        await Navigation.PushAsync(CreateDetailPageWithTransition(), animated: true);
         await Task.Delay(300);
 
-        await Navigation.PushAsync(new DetailPage(_navigationCount++), animated: true);
+        await Navigation.PushAsync(CreateDetailPageWithTransition(), animated: true);
         await Task.Delay(300);
 
-        await Navigation.PushAsync(new DetailPage(_navigationCount++), animated: true);
+        await Navigation.PushAsync(CreateDetailPageWithTransition(), animated: true);
 
         Log($"✓ 3 pages pushed. Stack count: {Navigation.NavigationStack.Count}");
         UpdateStackInfo();
@@ -94,11 +166,11 @@ public partial class MainPage : ContentPage
 
     private async void OnPushFiveRapidlyClicked(object sender, EventArgs e)
     {
-        Log("→ Pushing 5 pages rapidly (no delay)...");
+        Log($"→ Pushing 5 pages rapidly with {_currentTransition} (no delay)...");
 
         for (int i = 0; i < 5; i++)
         {
-            await Navigation.PushAsync(new DetailPage(_navigationCount++), animated: true);
+            await Navigation.PushAsync(CreateDetailPageWithTransition(), animated: true);
             Log($"  Pushed page {i + 1}/5");
         }
 
@@ -106,13 +178,29 @@ public partial class MainPage : ContentPage
         UpdateStackInfo();
     }
 
+    private async void OnPopToRootAnimatedClicked(object sender, EventArgs e)
+    {
+        Log("→ PopToRoot (animated)...");
+        await Navigation.PopToRootAsync(animated: true);
+        Log($"✓ PopToRoot complete. Stack count: {Navigation.NavigationStack.Count}");
+        UpdateStackInfo();
+    }
+
+    private async void OnPopToRootNoAnimClicked(object sender, EventArgs e)
+    {
+        Log("→ PopToRoot (no animation)...");
+        await Navigation.PopToRootAsync(animated: false);
+        Log($"✓ PopToRoot complete. Stack count: {Navigation.NavigationStack.Count}");
+        UpdateStackInfo();
+    }
+
     private async void OnRapidPushPopClicked(object sender, EventArgs e)
     {
-        Log("→ Starting rapid push/pop test (10 cycles)...");
+        Log($"→ Starting rapid push/pop test with {_currentTransition} (10 cycles)...");
 
         for (int i = 0; i < 10; i++)
         {
-            await Navigation.PushAsync(new DetailPage(_navigationCount++), animated: true);
+            await Navigation.PushAsync(CreateDetailPageWithTransition(), animated: true);
             Log($"  Cycle {i + 1}: Pushed");
 
             await Task.Delay(100);
@@ -129,7 +217,7 @@ public partial class MainPage : ContentPage
 
     private async void OnRandomAnimationPushPopClicked(object sender, EventArgs e)
     {
-        Log("→ Starting random animation push/pop test (20 cycles)...");
+        Log($"→ Starting random animation push/pop test with {_currentTransition} (20 cycles)...");
         var random = new Random();
 
         for (int i = 0; i < 20; i++)
@@ -137,7 +225,7 @@ public partial class MainPage : ContentPage
             var pushAnimated = random.Next(2) == 1;
             var popAnimated = random.Next(2) == 1;
 
-            await Navigation.PushAsync(new DetailPage(_navigationCount++), animated: pushAnimated);
+            await Navigation.PushAsync(CreateDetailPageWithTransition(), animated: pushAnimated);
             Log($"  Cycle {i + 1}: Pushed ({(pushAnimated ? "animated" : "no anim")})");
 
             await Task.Delay(50);
@@ -154,7 +242,7 @@ public partial class MainPage : ContentPage
 
     private async void OnRapidPopToRootClicked(object sender, EventArgs e)
     {
-        Log("→ Starting rapid PopToRoot test (5 cycles)...");
+        Log($"→ Starting rapid PopToRoot test with {_currentTransition} (5 cycles)...");
 
         for (int cycle = 0; cycle < 5; cycle++)
         {
@@ -163,7 +251,7 @@ public partial class MainPage : ContentPage
             // Build a deep stack
             for (int i = 0; i < 7; i++)
             {
-                await Navigation.PushAsync(new DetailPage(_navigationCount++), animated: false);
+                await Navigation.PushAsync(CreateDetailPageWithTransition(), animated: false);
             }
 
             Log($"  Cycle {cycle + 1}: Stack built. Count: {Navigation.NavigationStack.Count}");
@@ -183,7 +271,7 @@ public partial class MainPage : ContentPage
 
     private async void OnMixedAnimationTortureClicked(object sender, EventArgs e)
     {
-        Log("→ Starting mixed animation torture test (30 operations)...");
+        Log($"→ Starting mixed animation torture test with {_currentTransition} (30 operations)...");
         var random = new Random();
 
         for (int i = 0; i < 30; i++)
@@ -195,7 +283,7 @@ public partial class MainPage : ContentPage
             {
                 // Push
                 var animated = random.Next(2) == 1;
-                await Navigation.PushAsync(new DetailPage(_navigationCount++), animated: animated);
+                await Navigation.PushAsync(CreateDetailPageWithTransition(), animated: animated);
                 Log($"  Op {i + 1}: PUSH ({(animated ? "anim" : "no anim")}) - Stack: {Navigation.NavigationStack.Count}");
             }
             else if (operation == 1 && stackCount > 1)
@@ -216,7 +304,7 @@ public partial class MainPage : ContentPage
             {
                 // Fallback to push
                 var animated = random.Next(2) == 1;
-                await Navigation.PushAsync(new DetailPage(_navigationCount++), animated: animated);
+                await Navigation.PushAsync(CreateDetailPageWithTransition(), animated: animated);
                 Log($"  Op {i + 1}: PUSH ({(animated ? "anim" : "no anim")}) - Stack: {Navigation.NavigationStack.Count}");
             }
 

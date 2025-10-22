@@ -8,12 +8,32 @@ public partial class DetailPage : ContentPage
     private readonly StringBuilder _eventLog = new StringBuilder();
     private readonly DateTime _createdTime;
 
+    // Pastel colors for better fade visibility
+    private static readonly Color[] PastelColors = new[]
+    {
+        Color.FromRgb(255, 223, 223), // Light Pink
+        Color.FromRgb(255, 239, 213), // Peach
+        Color.FromRgb(255, 248, 220), // Light Yellow
+        Color.FromRgb(230, 255, 230), // Light Green
+        Color.FromRgb(224, 255, 255), // Light Cyan
+        Color.FromRgb(230, 230, 250), // Lavender
+        Color.FromRgb(255, 228, 225), // Misty Rose
+        Color.FromRgb(240, 255, 240), // Honeydew
+        Color.FromRgb(255, 250, 205), // Lemon Chiffon
+        Color.FromRgb(230, 245, 255), // Light Blue
+    };
+
     public DetailPage(int pageNumber)
     {
         InitializeComponent();
 
         _pageNumber = pageNumber;
         _createdTime = DateTime.Now;
+
+        // Assign a random pastel background color
+        var random = new Random(pageNumber); // Use pageNumber as seed for consistent colors per page number
+        var backgroundColor = PastelColors[random.Next(PastelColors.Length)];
+        this.BackgroundColor = backgroundColor;
 
         TitleLabel.Text = $"📄 Detail Page #{pageNumber}";
         PageNumberLabel.Text = $"Page #{pageNumber}";
@@ -78,9 +98,15 @@ public partial class DetailPage : ContentPage
         await Navigation.PopAsync(animated: false);
     }
 
-    private async void OnPopToRootClicked(object sender, EventArgs e)
+    private async void OnPopToRootAnimatedClicked(object sender, EventArgs e)
     {
-        LogEvent("⏪ Popping to root");
+        LogEvent("⏪ Popping to root (animated)");
         await Navigation.PopToRootAsync(animated: true);
+    }
+
+    private async void OnPopToRootNoAnimClicked(object sender, EventArgs e)
+    {
+        LogEvent("⏪ Popping to root (no animation)");
+        await Navigation.PopToRootAsync(animated: false);
     }
 }

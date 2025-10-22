@@ -27,6 +27,7 @@ namespace LightNavigation.Platform
         // Animation settings
         private const int ANIMATION_IN_DURATION_MS = 150;
         private const int ANIMATION_OUT_DURATION_MS = 100;
+        private const int WHIRL3_DURATION_MS = 400; // Longer duration for 3-rotation whirl effect
 
         // Navigation operation queue to prevent concurrent operations and ensure smooth transitions
         private readonly Queue<Func<Task>> _navigationQueue = new();
@@ -148,25 +149,31 @@ namespace LightNavigation.Platform
                         var newPage = newStack[newStack.Count - 1] as Page;
                         if (newPage != null)
                         {
+                            // Get the effective transition (page-specific or global default)
+                            var transition = LightNavigationPage.GetEffectiveTransition(newPage);
+
                             if (currentStackCount == 0)
                             {
-                                await ShowPageAsync(newPage, false, isInitial: true);
+                                await ShowPageAsync(newPage, false, transition, isInitial: true);
                             }
                             else
                             {
-                                await ShowPageAsync(newPage, request.Animated, isInitial: false);
+                                await ShowPageAsync(newPage, request.Animated, transition, isInitial: false);
                             }
                         }
                     }
                     else if (newStack.Count < currentStackCount)
                     {
-                        // Pop
+                        // Pop - get transition from the page we're returning to
+                        var targetPage = newStack.Count > 0 ? newStack[newStack.Count - 1] as Page : null;
+                        var transition = targetPage != null ? LightNavigationPage.GetEffectiveTransition(targetPage) : AnimationType.Default;
+
                         var diff = currentStackCount - newStack.Count;
 
                         // Pop the required number of pages
                         for (int i = 0; i < diff; i++)
                         {
-                            await PopPageAsync(request.Animated);
+                            await PopPageAsync(request.Animated, transition);
                         }
                     }
 
@@ -183,12 +190,20 @@ namespace LightNavigation.Platform
             });
         }
 
-        private Task ShowPageAsync(Page page, bool animate, bool isInitial)
+        private Task ShowPageAsync(Page page, bool animate, AnimationType transition, bool isInitial)
         {
             var tcs = new TaskCompletionSource<bool>();
 
             try
             {
+                // Check if page is already in the stack to prevent duplicates
+                if (_viewStack.Contains(page))
+                {
+                    Debug.WriteLine($"{TAG} ⚠️ Page already in stack, skipping");
+                    tcs.SetResult(false);
+                    return tcs.Task;
+                }
+
                 // Convert MAUI page to Android View
                 var newView = page.ToPlatform(MauiContext!);
 
@@ -204,6 +219,14 @@ namespace LightNavigation.Platform
                 var container = PlatformView;
                 var oldPage = _currentView;
                 var oldView = _currentView?.Handler?.PlatformView as AView;
+
+                // CRITICAL: Ensure view is removed from previous parent before adding
+                var parent = newView.Parent as ViewGroup;
+                if (parent != null)
+                {
+                    Debug.WriteLine($"{TAG} ⚠️ View already has parent, removing first");
+                    parent.RemoveView(newView);
+                }
 
                 var newAware = page as INavigationAware;
                 var oldAware = oldPage as INavigationAware;
@@ -223,11 +246,10 @@ namespace LightNavigation.Platform
                 }
                 else
                 {
-                    if (animate)
+                    if (animate && transition != AnimationType.None)
                     {
-                        // Set initial animation state
-                        newView.Alpha = 0.3f;
-                        newView.TranslationX = container.Width * 0.15f; // Start slightly to the right
+                        // Set initial animation state based on transition type
+                        ApplyPushAnimationStart(newView, oldView, container, transition);
                         oldView.Visibility = ViewStates.Visible;
                     }
 
@@ -238,26 +260,19 @@ namespace LightNavigation.Platform
                     // Wait for new view to be laid out and rendered
                     newView.Post(() =>
                     {
-                        if (animate)
+                        if (animate && transition != AnimationType.None)
                         {
-                            // Animate new view: fade in + slide from right
-                            newView.Animate()
-                                .Alpha(1f)
-                                .TranslationX(0f)
-                                .SetDuration(ANIMATION_IN_DURATION_MS)
-                                .SetInterpolator(new Android.Views.Animations.DecelerateInterpolator())
-                                .WithEndAction(new Java.Lang.Runnable(() =>
-                                {
-                                    // AFTER animation completes, hide old view
-                                    newView.TranslationX = 0;
-                                    newView.Alpha = 1;
-                                    oldView.Visibility = ViewStates.Invisible;
+                            // Animate based on transition type
+                            ApplyPushAnimation(newView, oldView, container, transition, page, () =>
+                            {
+                                // AFTER animation completes, hide old view
+                                ResetViewState(newView);
+                                oldView.Visibility = ViewStates.Invisible;
 
-                                    newAware?.OnTopmost();
-                                    oldAware?.OnRemoved();
-                                    tcs.SetResult(true);
-                                }))
-                                .Start();
+                                newAware?.OnTopmost();
+                                oldAware?.OnRemoved();
+                                tcs.SetResult(true);
+                            });
                         }
                         else
                         {
@@ -283,7 +298,7 @@ namespace LightNavigation.Platform
             return tcs.Task;
         }
 
-        private Task PopPageAsync(bool animate)
+        private Task PopPageAsync(bool animate, AnimationType transition)
         {
             var tcs = new TaskCompletionSource<bool>();
 
@@ -310,54 +325,37 @@ namespace LightNavigation.Platform
 
                     oldAware?.OnPopping();
 
-                    if (animate && oldView != null && newView != null)
+                    if (animate && transition != AnimationType.None && oldView != null && newView != null)
                     {
-                        oldView.TranslationX = 0;
-                        oldView.Alpha = 1;
-                        oldView.Visibility = ViewStates.Visible;
-                        // Keep old view on top for animation
-                        oldView.BringToFront();
-
-                        newView.TranslationX = 0;
-                        newView.Alpha = 1;
-                        newView.Visibility = ViewStates.Visible;
+                        // Set initial state for pop animation
+                        ApplyPopAnimationStart(oldView, newView, container, transition);
                     }
 
                     Debug.WriteLine($"{TAG} OLDVIEW visibility: {oldView?.Visibility}");
 
                     newView?.Post(() =>
                     {
-                        if (animate && oldView != null)
+                        if (animate && transition != AnimationType.None && oldView != null && newView != null)
                         {
-                            Debug.WriteLine($"{TAG} 🎬 Starting pop animation");
-                            oldView.Visibility = ViewStates.Visible;
+                            Debug.WriteLine($"{TAG} 🎬 Starting pop animation - {transition}");
 
-                            // Animate old view: slide out to right + fade out
-                            oldView.Animate()
-                                .Alpha(0f)
-                                .TranslationX(container.Width * 0.3f)
-                                .SetDuration(ANIMATION_OUT_DURATION_MS)
-                                .SetInterpolator(new Android.Views.Animations.AccelerateInterpolator())
-                                .WithEndAction(new Java.Lang.Runnable(() =>
-                                {
-                                    container.RemoveView(oldView);
-                                    if (newView != null)
-                                    {
-                                        newView.Alpha = 1;
-                                        newView.TranslationX = 0;
-                                    }
+                            // Apply pop animation based on transition type
+                            // Use oldPage properties since that's the page being removed
+                            ApplyPopAnimation(oldView, newView, container, transition, oldPage, () =>
+                            {
+                                container.RemoveView(oldView);
+                                ResetViewState(newView);
 
-                                    // Update stacks AFTER animation completes
-                                    _currentView = page;
-                                    _viewStack.Remove(oldPage);
+                                // Update stacks AFTER animation completes
+                                _currentView = page;
+                                _viewStack.Remove(oldPage);
 
-                                    oldAware?.OnRemoved();
-                                    newAware?.OnTopmost();
-                                    Debug.WriteLine($"{TAG} 📊 Stack count after pop: {_viewStack.Count}");
-                                    Debug.WriteLine($"{TAG} ✅ Pop animation complete!");
-                                    tcs.SetResult(true);
-                                }))
-                                .Start();
+                                oldAware?.OnRemoved();
+                                newAware?.OnTopmost();
+                                Debug.WriteLine($"{TAG} 📊 Stack count after pop: {_viewStack.Count}");
+                                Debug.WriteLine($"{TAG} ✅ Pop animation complete!");
+                                tcs.SetResult(true);
+                            });
                         }
                         else
                         {
@@ -373,6 +371,9 @@ namespace LightNavigation.Platform
                                 newView.Visibility = ViewStates.Visible;
                                 newView.Alpha = 1;
                                 newView.TranslationX = 0;
+                                newView.TranslationY = 0;
+                                newView.ScaleX = 1;
+                                newView.ScaleY = 1;
                                 newView.BringToFront();
                             }
 
@@ -466,6 +467,354 @@ namespace LightNavigation.Platform
 
             return tcs.Task;
         }
+
+        #region Animation Helpers
+
+        private void ResetViewState(AView view)
+        {
+            view.TranslationX = 0;
+            view.TranslationY = 0;
+            view.Alpha = 1;
+            view.ScaleX = 1;
+            view.ScaleY = 1;
+        }
+
+        /// <summary>
+        /// Gets the appropriate Android interpolator for the specified easing type.
+        /// </summary>
+        /// <param name="easing">The easing type (Default = use built-in behavior).</param>
+        /// <param name="isForward">True for push animations (use decelerate), false for pop animations (use accelerate).</param>
+        /// <returns>The Android IInterpolator to use.</returns>
+        private Android.Views.Animations.IInterpolator GetInterpolatorForEasing(TransitionEasing easing, bool isForward)
+        {
+            // If Default (0), use the standard behavior based on direction
+            if (easing == TransitionEasing.Default)
+            {
+                return isForward
+                    ? new Android.Views.Animations.DecelerateInterpolator()
+                    : new Android.Views.Animations.AccelerateInterpolator();
+            }
+
+            // Otherwise, use the specified easing type
+            return easing switch
+            {
+                TransitionEasing.Linear => new Android.Views.Animations.LinearInterpolator(),
+                TransitionEasing.Decelerate => new Android.Views.Animations.DecelerateInterpolator(),
+                TransitionEasing.Accelerate => new Android.Views.Animations.AccelerateInterpolator(),
+                TransitionEasing.AccelerateDecelerate => new Android.Views.Animations.AccelerateDecelerateInterpolator(),
+                _ => isForward
+                    ? new Android.Views.Animations.DecelerateInterpolator()
+                    : new Android.Views.Animations.AccelerateInterpolator()
+            };
+        }
+
+        private void ApplyPushAnimationStart(AView newView, AView oldView, FrameLayout container, AnimationType transition)
+        {
+            switch (transition)
+            {
+                case AnimationType.Default:
+                case AnimationType.SlideFromRight:
+                case AnimationType.ParallaxSlideFromRight:
+                    newView.Alpha = 0.3f;
+                    newView.TranslationX = container.Width * 0.15f;
+                    break;
+
+                case AnimationType.SlideFromLeft:
+                case AnimationType.ParallaxSlideFromLeft:
+                    newView.Alpha = 0.3f;
+                    newView.TranslationX = -container.Width * 0.15f;
+                    break;
+
+                case AnimationType.SlideFromBottom:
+                    newView.Alpha = 0.3f;
+                    newView.TranslationY = container.Height * 0.15f;
+                    break;
+
+                case AnimationType.SlideFromTop:
+                    newView.Alpha = 0.3f;
+                    newView.TranslationY = -container.Height * 0.15f;
+                    break;
+
+                case AnimationType.Fade:
+                    newView.Alpha = 0f;
+                    break;
+
+                case AnimationType.ZoomIn:
+                    newView.Alpha = 0f;
+                    newView.ScaleX = 0.85f;
+                    newView.ScaleY = 0.85f;
+                    // Set pivot to center for zoom
+                    newView.PivotX = container.Width / 2f;
+                    newView.PivotY = container.Height / 2f;
+                    break;
+
+                case AnimationType.ZoomOut:
+                    newView.Alpha = 0f;
+                    newView.ScaleX = 1.15f;
+                    newView.ScaleY = 1.15f;
+                    // Set pivot to center for zoom
+                    newView.PivotX = container.Width / 2f;
+                    newView.PivotY = container.Height / 2f;
+                    break;
+
+                case AnimationType.WhirlIn:
+                    newView.Alpha = 0f;
+                    newView.ScaleX = 0.3f;
+                    newView.ScaleY = 0.3f;
+                    newView.Rotation = -180f; // Start rotated 180 degrees counter-clockwise
+                    // Set pivot to center for rotation and zoom
+                    newView.PivotX = container.Width / 2f;
+                    newView.PivotY = container.Height / 2f;
+                    break;
+
+                case AnimationType.WhirlIn3:
+                    newView.Alpha = 0f;
+                    newView.ScaleX = 0.3f;
+                    newView.ScaleY = 0.3f;
+                    newView.Rotation = -1080f; // Start rotated 3 full rotations (1080 degrees)
+                    // Set pivot to center for rotation and zoom
+                    newView.PivotX = container.Width / 2f;
+                    newView.PivotY = container.Height / 2f;
+                    break;
+            }
+        }
+
+        private void ApplyPushAnimation(AView newView, AView oldView, FrameLayout container, AnimationType transition, Page page, Action onComplete)
+        {
+            // Get custom speed and easing from page properties
+            var customSpeed = LightNavigationPage.GetTransitionSpeed(page);
+            var customEasing = LightNavigationPage.GetTransitionEasing(page);
+
+            // Use custom speed if set (> 0), otherwise use default duration
+            var duration = customSpeed > 0 ? customSpeed :
+                          (transition == AnimationType.WhirlIn3 ? WHIRL3_DURATION_MS : ANIMATION_IN_DURATION_MS);
+
+            // Create interpolator based on custom easing or use default
+            var interpolator = GetInterpolatorForEasing(customEasing, isForward: true);
+
+            var animator = newView.Animate()
+                .SetDuration(duration)
+                .SetInterpolator(interpolator)
+                .WithEndAction(new Java.Lang.Runnable(onComplete));
+
+            switch (transition)
+            {
+                case AnimationType.Default:
+                case AnimationType.SlideFromRight:
+                case AnimationType.SlideFromLeft:
+                case AnimationType.SlideFromBottom:
+                case AnimationType.SlideFromTop:
+                    animator.Alpha(1f).TranslationX(0f).TranslationY(0f);
+                    break;
+
+                case AnimationType.ParallaxSlideFromRight:
+                    animator.Alpha(1f).TranslationX(0f);
+                    oldView.Animate()
+                        .TranslationX(-container.Width * 0.3f)
+                        .SetDuration(duration)
+                        .SetInterpolator(interpolator)
+                        .Start();
+                    break;
+
+                case AnimationType.ParallaxSlideFromLeft:
+                    animator.Alpha(1f).TranslationX(0f);
+                    oldView.Animate()
+                        .TranslationX(container.Width * 0.3f)
+                        .SetDuration(duration)
+                        .SetInterpolator(interpolator)
+                        .Start();
+                    break;
+
+                case AnimationType.Fade:
+                    animator.Alpha(1f);
+                    break;
+
+                case AnimationType.ZoomIn:
+                case AnimationType.ZoomOut:
+                    animator.Alpha(1f).ScaleX(1f).ScaleY(1f);
+                    break;
+
+                case AnimationType.WhirlIn:
+                case AnimationType.WhirlIn3:
+                    animator.Alpha(1f).ScaleX(1f).ScaleY(1f).Rotation(0f);
+                    break;
+            }
+
+            animator.Start();
+        }
+
+        private void ApplyPopAnimationStart(AView oldView, AView newView, FrameLayout container, AnimationType transition)
+        {
+            // Reset views to visible state
+            oldView.TranslationX = 0;
+            oldView.TranslationY = 0;
+            oldView.Alpha = 1;
+            oldView.ScaleX = 1;
+            oldView.ScaleY = 1;
+            oldView.Visibility = ViewStates.Visible;
+            oldView.BringToFront();
+
+            newView.TranslationX = 0;
+            newView.TranslationY = 0;
+            newView.Alpha = 1;
+            newView.ScaleX = 1;
+            newView.ScaleY = 1;
+            newView.Visibility = ViewStates.Visible;
+
+            // Position newView based on transition (it's the page we're returning to)
+            switch (transition)
+            {
+                case AnimationType.Default:
+                case AnimationType.SlideFromRight:
+                case AnimationType.ParallaxSlideFromRight:
+                    newView.TranslationX = -container.Width * 0.3f;
+                    break;
+
+                case AnimationType.SlideFromLeft:
+                case AnimationType.ParallaxSlideFromLeft:
+                    newView.TranslationX = container.Width * 0.3f;
+                    break;
+
+                case AnimationType.SlideFromBottom:
+                    newView.TranslationY = -container.Height * 0.3f;
+                    break;
+
+                case AnimationType.SlideFromTop:
+                    newView.TranslationY = container.Height * 0.3f;
+                    break;
+
+                case AnimationType.Fade:
+                    newView.Alpha = 0.5f;
+                    break;
+
+                case AnimationType.ZoomIn:
+                    newView.ScaleX = 1.15f;
+                    newView.ScaleY = 1.15f;
+                    newView.Alpha = 0.5f;
+                    // Set pivot to center for zoom
+                    newView.PivotX = container.Width / 2f;
+                    newView.PivotY = container.Height / 2f;
+                    break;
+
+                case AnimationType.ZoomOut:
+                    newView.ScaleX = 0.85f;
+                    newView.ScaleY = 0.85f;
+                    newView.Alpha = 0.5f;
+                    // Set pivot to center for zoom
+                    newView.PivotX = container.Width / 2f;
+                    newView.PivotY = container.Height / 2f;
+                    break;
+
+                case AnimationType.WhirlIn:
+                    newView.ScaleX = 1.3f;
+                    newView.ScaleY = 1.3f;
+                    newView.Rotation = 180f; // Rotate 180 degrees clockwise (reverse of push)
+                    newView.Alpha = 0.5f;
+                    // Set pivot to center for rotation and zoom
+                    newView.PivotX = container.Width / 2f;
+                    newView.PivotY = container.Height / 2f;
+                    break;
+
+                case AnimationType.WhirlIn3:
+                    newView.ScaleX = 1.3f;
+                    newView.ScaleY = 1.3f;
+                    newView.Rotation = 1080f; // Rotate 3 full rotations clockwise (reverse of push)
+                    newView.Alpha = 0.5f;
+                    // Set pivot to center for rotation and zoom
+                    newView.PivotX = container.Width / 2f;
+                    newView.PivotY = container.Height / 2f;
+                    break;
+            }
+        }
+
+        private void ApplyPopAnimation(AView oldView, AView newView, FrameLayout container, AnimationType transition, Page page, Action onComplete)
+        {
+            // Get custom speed and easing from page properties
+            var customSpeed = LightNavigationPage.GetTransitionSpeed(page);
+            var customEasing = LightNavigationPage.GetTransitionEasing(page);
+
+            // Use custom speed if set (> 0), otherwise use default duration
+            var duration = customSpeed > 0 ? customSpeed :
+                          (transition == AnimationType.WhirlIn3 ? WHIRL3_DURATION_MS : ANIMATION_OUT_DURATION_MS);
+
+            // Create interpolator based on custom easing or use default for pop (backwards)
+            var interpolator = GetInterpolatorForEasing(customEasing, isForward: false);
+
+            // Set pivot points for zoom/rotation animations BEFORE creating animators
+            if (transition == AnimationType.ZoomIn || transition == AnimationType.ZoomOut ||
+                transition == AnimationType.WhirlIn || transition == AnimationType.WhirlIn3)
+            {
+                oldView.PivotX = container.Width / 2f;
+                oldView.PivotY = container.Height / 2f;
+                newView.PivotX = container.Width / 2f;
+                newView.PivotY = container.Height / 2f;
+            }
+
+            var oldAnimator = oldView.Animate()
+                .SetDuration(duration)
+                .SetInterpolator(interpolator)
+                .WithEndAction(new Java.Lang.Runnable(onComplete));
+
+            var newAnimator = newView.Animate()
+                .SetDuration(duration)
+                .SetInterpolator(interpolator);
+
+            switch (transition)
+            {
+                case AnimationType.Default:
+                case AnimationType.SlideFromRight:
+                case AnimationType.ParallaxSlideFromRight:
+                    oldAnimator.Alpha(0f).TranslationX(container.Width * 0.3f);
+                    newAnimator.TranslationX(0f);
+                    break;
+
+                case AnimationType.SlideFromLeft:
+                case AnimationType.ParallaxSlideFromLeft:
+                    oldAnimator.Alpha(0f).TranslationX(-container.Width * 0.3f);
+                    newAnimator.TranslationX(0f);
+                    break;
+
+                case AnimationType.SlideFromBottom:
+                    oldAnimator.Alpha(0f).TranslationY(container.Height * 0.3f);
+                    newAnimator.TranslationY(0f);
+                    break;
+
+                case AnimationType.SlideFromTop:
+                    oldAnimator.Alpha(0f).TranslationY(-container.Height * 0.3f);
+                    newAnimator.TranslationY(0f);
+                    break;
+
+                case AnimationType.Fade:
+                    oldAnimator.Alpha(0f);
+                    newAnimator.Alpha(1f);
+                    break;
+
+                case AnimationType.ZoomIn:
+                    oldAnimator.Alpha(0f).ScaleX(0.85f).ScaleY(0.85f);
+                    newAnimator.Alpha(1f).ScaleX(1f).ScaleY(1f);
+                    break;
+
+                case AnimationType.ZoomOut:
+                    oldAnimator.Alpha(0f).ScaleX(1.15f).ScaleY(1.15f);
+                    newAnimator.Alpha(1f).ScaleX(1f).ScaleY(1f);
+                    break;
+
+                case AnimationType.WhirlIn:
+                    oldAnimator.Alpha(0f).ScaleX(0.3f).ScaleY(0.3f).Rotation(-180f);
+                    newAnimator.Alpha(1f).ScaleX(1f).ScaleY(1f).Rotation(0f);
+                    break;
+
+                case AnimationType.WhirlIn3:
+                    oldAnimator.Alpha(0f).ScaleX(0.3f).ScaleY(0.3f).Rotation(-1080f);
+                    newAnimator.Alpha(1f).ScaleX(1f).ScaleY(1f).Rotation(0f);
+                    break;
+            }
+
+            oldAnimator.Start();
+            newAnimator.Start();
+        }
+
+        #endregion
     }
 }
 #endif
