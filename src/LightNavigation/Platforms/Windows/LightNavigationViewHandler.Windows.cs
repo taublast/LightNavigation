@@ -41,6 +41,7 @@ namespace LightNavigation.Platform
         // Animation settings
         private const int ANIMATION_IN_DURATION_MS = 150;
         private const int ANIMATION_OUT_DURATION_MS = 150;
+        private const int WHIRL3_DURATION_MS = 400; // Longer duration for 3-rotation whirl effect
 
         // Navigation operation queue to prevent concurrent operations and ensure smooth transitions
         private readonly Queue<Func<Task>> _navigationQueue = new();
@@ -182,15 +183,18 @@ namespace LightNavigation.Platform
                         var newPage = newStack[newStack.Count - 1] as MauiPage;
                         if (newPage != null)
                         {
+                            // Get the effective transition for this page
+                            var transition = LightNavigationPage.GetEffectiveTransition(newPage);
+
                             if (currentStackCount == 0)
                             {
                                 Debug.WriteLine($"{TAG} ➡️ Initial page: {newPage.GetType().Name}");
-                                await ShowPageAsync(newPage, false, isInitial: true);
+                                await ShowPageAsync(newPage, false, transition, isInitial: true);
                             }
                             else
                             {
-                                Debug.WriteLine($"{TAG} ➡️ Push: {newPage.GetType().Name}");
-                                await ShowPageAsync(newPage, request.Animated, isInitial: false);
+                                Debug.WriteLine($"{TAG} ➡️ Push: {newPage.GetType().Name}, Transition: {transition}");
+                                await ShowPageAsync(newPage, request.Animated, transition, isInitial: false);
                             }
                         }
                     }
@@ -200,10 +204,16 @@ namespace LightNavigation.Platform
                         var diff = currentStackCount - newStack.Count;
                         Debug.WriteLine($"{TAG} ⬅️ Pop {diff} page(s)");
 
+                        // Get the transition from the page being popped (last page in current stack)
+                        var poppingPage = _pageStack.LastOrDefault();
+                        var transition = poppingPage != null
+                            ? LightNavigationPage.GetEffectiveTransition(poppingPage)
+                            : AnimationType.Default;
+
                         // Pop the required number of pages
                         for (int i = 0; i < diff; i++)
                         {
-                            await PopPageAsync(request.Animated);
+                            await PopPageAsync(request.Animated, transition);
                         }
                     }
 
@@ -220,13 +230,292 @@ namespace LightNavigation.Platform
             });
         }
 
-        private Task ShowPageAsync(MauiPage page, bool animate, bool isInitial)
+        /// <summary>
+        /// Gets the appropriate Windows easing function for the specified easing type.
+        /// </summary>
+        /// <param name="easing">The easing type (Default = use built-in behavior).</param>
+        /// <param name="isForward">True for push animations (use EaseOut), false for pop animations (use EaseIn).</param>
+        /// <returns>The Windows EasingFunctionBase to use.</returns>
+        private Microsoft.UI.Xaml.Media.Animation.EasingFunctionBase GetEasingForTransition(TransitionEasing easing, bool isForward)
+        {
+            // If Default (0), use the standard behavior based on direction
+            if (easing == TransitionEasing.Default)
+            {
+                return isForward
+                    ? new QuadraticEase { EasingMode = EasingMode.EaseOut }
+                    : new QuadraticEase { EasingMode = EasingMode.EaseIn };
+            }
+
+            // Otherwise, use the specified easing type
+            return easing switch
+            {
+                TransitionEasing.Linear => new QuadraticEase { EasingMode = EasingMode.EaseInOut }, // Closest to linear in Windows
+                TransitionEasing.Decelerate => new QuadraticEase { EasingMode = EasingMode.EaseOut },
+                TransitionEasing.Accelerate => new QuadraticEase { EasingMode = EasingMode.EaseIn },
+                TransitionEasing.AccelerateDecelerate => new QuadraticEase { EasingMode = EasingMode.EaseInOut },
+                _ => isForward
+                    ? new QuadraticEase { EasingMode = EasingMode.EaseOut }
+                    : new QuadraticEase { EasingMode = EasingMode.EaseIn }
+            };
+        }
+
+        private void ResetViewTransform(FrameworkElement view)
+        {
+            view.Opacity = 1;
+            if (view.RenderTransform is Microsoft.UI.Xaml.Media.CompositeTransform transform)
+            {
+                transform.TranslateX = 0;
+                transform.TranslateY = 0;
+                transform.ScaleX = 1;
+                transform.ScaleY = 1;
+                transform.Rotation = 0;
+            }
+        }
+
+        private Storyboard CreatePushAnimationStoryboard(FrameworkElement newView, FrameworkElement oldView, WGrid container,
+            AnimationType transition, int duration, Microsoft.UI.Xaml.Media.Animation.EasingFunctionBase easingFunction)
+        {
+            var storyboard = new Storyboard();
+            var newTransform = newView.RenderTransform as Microsoft.UI.Xaml.Media.CompositeTransform;
+
+            switch (transition)
+            {
+                case AnimationType.Default:
+                case AnimationType.SlideFromRight:
+                    storyboard.Children.Add(CreateDoubleAnimation(newView, "Opacity", null, 1.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(newTransform, "TranslateX", null, 0, duration, easingFunction));
+                    break;
+
+                case AnimationType.SlideFromLeft:
+                    storyboard.Children.Add(CreateDoubleAnimation(newView, "Opacity", null, 1.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(newTransform, "TranslateX", null, 0, duration, easingFunction));
+                    break;
+
+                case AnimationType.SlideFromBottom:
+                    storyboard.Children.Add(CreateDoubleAnimation(newView, "Opacity", null, 1.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(newTransform, "TranslateY", null, 0, duration, easingFunction));
+                    break;
+
+                case AnimationType.SlideFromTop:
+                    storyboard.Children.Add(CreateDoubleAnimation(newView, "Opacity", null, 1.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(newTransform, "TranslateY", null, 0, duration, easingFunction));
+                    break;
+
+                case AnimationType.ParallaxSlideFromRight:
+                    storyboard.Children.Add(CreateDoubleAnimation(newView, "Opacity", null, 1.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(newTransform, "TranslateX", null, 0, duration, easingFunction));
+                    // Parallax effect on old view
+                    if (oldView.RenderTransform is Microsoft.UI.Xaml.Media.CompositeTransform oldTransform)
+                    {
+                        storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "TranslateX", null, -container.ActualWidth * 0.3, duration, easingFunction));
+                    }
+                    break;
+
+                case AnimationType.ParallaxSlideFromLeft:
+                    storyboard.Children.Add(CreateDoubleAnimation(newView, "Opacity", null, 1.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(newTransform, "TranslateX", null, 0, duration, easingFunction));
+                    // Parallax effect on old view
+                    if (oldView.RenderTransform is Microsoft.UI.Xaml.Media.CompositeTransform oldTransform2)
+                    {
+                        storyboard.Children.Add(CreateDoubleAnimation(oldTransform2, "TranslateX", null, container.ActualWidth * 0.3, duration, easingFunction));
+                    }
+                    break;
+
+                case AnimationType.Fade:
+                    storyboard.Children.Add(CreateDoubleAnimation(newView, "Opacity", null, 1.0, duration, easingFunction));
+                    break;
+
+                case AnimationType.ZoomIn:
+                case AnimationType.ZoomOut:
+                    storyboard.Children.Add(CreateDoubleAnimation(newView, "Opacity", null, 1.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(newTransform, "ScaleX", null, 1.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(newTransform, "ScaleY", null, 1.0, duration, easingFunction));
+                    break;
+
+                case AnimationType.WhirlIn:
+                case AnimationType.WhirlIn3:
+                    storyboard.Children.Add(CreateDoubleAnimation(newView, "Opacity", null, 1.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(newTransform, "ScaleX", null, 1.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(newTransform, "ScaleY", null, 1.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(newTransform, "Rotation", null, 0, duration, easingFunction));
+                    break;
+            }
+
+            return storyboard;
+        }
+
+        private DoubleAnimation CreateDoubleAnimation(DependencyObject target, string propertyPath, double? from, double to,
+            int duration, Microsoft.UI.Xaml.Media.Animation.EasingFunctionBase easingFunction)
+        {
+            var animation = new DoubleAnimation
+            {
+                To = to,
+                Duration = new Duration(TimeSpan.FromMilliseconds(duration)),
+                EasingFunction = easingFunction
+            };
+
+            if (from.HasValue)
+            {
+                animation.From = from.Value;
+            }
+
+            Storyboard.SetTarget(animation, target);
+            Storyboard.SetTargetProperty(animation, propertyPath);
+
+            return animation;
+        }
+
+        private Storyboard CreatePopAnimationStoryboard(FrameworkElement oldView, FrameworkElement newView, WGrid container,
+            AnimationType transition, int duration, Microsoft.UI.Xaml.Media.Animation.EasingFunctionBase easingFunction)
+        {
+            var storyboard = new Storyboard();
+            var oldTransform = oldView.RenderTransform as Microsoft.UI.Xaml.Media.CompositeTransform;
+
+            switch (transition)
+            {
+                case AnimationType.Default:
+                case AnimationType.SlideFromRight:
+                case AnimationType.ParallaxSlideFromRight:
+                    storyboard.Children.Add(CreateDoubleAnimation(oldView, "Opacity", null, 0.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "TranslateX", null, container.ActualWidth * 0.3, duration, easingFunction));
+                    break;
+
+                case AnimationType.SlideFromLeft:
+                case AnimationType.ParallaxSlideFromLeft:
+                    storyboard.Children.Add(CreateDoubleAnimation(oldView, "Opacity", null, 0.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "TranslateX", null, -container.ActualWidth * 0.3, duration, easingFunction));
+                    break;
+
+                case AnimationType.SlideFromBottom:
+                    storyboard.Children.Add(CreateDoubleAnimation(oldView, "Opacity", null, 0.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "TranslateY", null, container.ActualHeight * 0.3, duration, easingFunction));
+                    break;
+
+                case AnimationType.SlideFromTop:
+                    storyboard.Children.Add(CreateDoubleAnimation(oldView, "Opacity", null, 0.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "TranslateY", null, -container.ActualHeight * 0.3, duration, easingFunction));
+                    break;
+
+                case AnimationType.Fade:
+                    storyboard.Children.Add(CreateDoubleAnimation(oldView, "Opacity", null, 0.0, duration, easingFunction));
+                    break;
+
+                case AnimationType.ZoomIn:
+                    storyboard.Children.Add(CreateDoubleAnimation(oldView, "Opacity", null, 0.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "ScaleX", null, 0.85, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "ScaleY", null, 0.85, duration, easingFunction));
+                    break;
+
+                case AnimationType.ZoomOut:
+                    storyboard.Children.Add(CreateDoubleAnimation(oldView, "Opacity", null, 0.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "ScaleX", null, 1.15, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "ScaleY", null, 1.15, duration, easingFunction));
+                    break;
+
+                case AnimationType.WhirlIn:
+                    storyboard.Children.Add(CreateDoubleAnimation(oldView, "Opacity", null, 0.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "ScaleX", null, 0.3, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "ScaleY", null, 0.3, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "Rotation", null, -180, duration, easingFunction));
+                    break;
+
+                case AnimationType.WhirlIn3:
+                    storyboard.Children.Add(CreateDoubleAnimation(oldView, "Opacity", null, 0.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "ScaleX", null, 0.3, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "ScaleY", null, 0.3, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "Rotation", null, -1080, duration, easingFunction));
+                    break;
+            }
+
+            return storyboard;
+        }
+
+        private void ApplyPushAnimationStart(FrameworkElement newView, FrameworkElement oldView, WGrid container, AnimationType transition)
+        {
+            // Ensure views have appropriate transforms
+            if (newView.RenderTransform == null || newView.RenderTransform is not Microsoft.UI.Xaml.Media.CompositeTransform)
+            {
+                newView.RenderTransform = new Microsoft.UI.Xaml.Media.CompositeTransform();
+            }
+
+            var transform = (Microsoft.UI.Xaml.Media.CompositeTransform)newView.RenderTransform;
+
+            switch (transition)
+            {
+                case AnimationType.Default:
+                case AnimationType.SlideFromRight:
+                case AnimationType.ParallaxSlideFromRight:
+                    newView.Opacity = 0.3;
+                    transform.TranslateX = container.ActualWidth * 0.15;
+                    break;
+
+                case AnimationType.SlideFromLeft:
+                case AnimationType.ParallaxSlideFromLeft:
+                    newView.Opacity = 0.3;
+                    transform.TranslateX = -container.ActualWidth * 0.15;
+                    break;
+
+                case AnimationType.SlideFromBottom:
+                    newView.Opacity = 0.3;
+                    transform.TranslateY = container.ActualHeight * 0.15;
+                    break;
+
+                case AnimationType.SlideFromTop:
+                    newView.Opacity = 0.3;
+                    transform.TranslateY = -container.ActualHeight * 0.15;
+                    break;
+
+                case AnimationType.Fade:
+                    newView.Opacity = 0;
+                    break;
+
+                case AnimationType.ZoomIn:
+                    newView.Opacity = 0;
+                    transform.ScaleX = 0.85;
+                    transform.ScaleY = 0.85;
+                    transform.CenterX = container.ActualWidth / 2;
+                    transform.CenterY = container.ActualHeight / 2;
+                    break;
+
+                case AnimationType.ZoomOut:
+                    newView.Opacity = 0;
+                    transform.ScaleX = 1.15;
+                    transform.ScaleY = 1.15;
+                    transform.CenterX = container.ActualWidth / 2;
+                    transform.CenterY = container.ActualHeight / 2;
+                    break;
+
+                case AnimationType.WhirlIn:
+                    newView.Opacity = 0;
+                    transform.ScaleX = 0.3;
+                    transform.ScaleY = 0.3;
+                    transform.Rotation = -180; // Start rotated 180 degrees
+                    transform.CenterX = container.ActualWidth / 2;
+                    transform.CenterY = container.ActualHeight / 2;
+                    break;
+
+                case AnimationType.WhirlIn3:
+                    newView.Opacity = 0;
+                    transform.ScaleX = 0.3;
+                    transform.ScaleY = 0.3;
+                    transform.Rotation = -1080; // Start rotated 3 full rotations (1080 degrees)
+                    transform.CenterX = container.ActualWidth / 2;
+                    transform.CenterY = container.ActualHeight / 2;
+                    break;
+
+                case AnimationType.None:
+                    // No initial state change
+                    break;
+            }
+        }
+
+        private Task ShowPageAsync(MauiPage page, bool animate, AnimationType transition, bool isInitial)
         {
             var tcs = new TaskCompletionSource<bool>();
 
             try
             {
-                Debug.WriteLine($"{TAG} 📄 ShowPageAsync: {page.GetType().Name}, isInitial: {isInitial}");
+                Debug.WriteLine($"{TAG} 📄 ShowPageAsync: {page.GetType().Name}, isInitial: {isInitial}, Transition: {transition}");
 
                 // Convert MAUI page to Windows FrameworkElement
                 var newView = page.ToPlatform(MauiContext!);
@@ -258,7 +547,7 @@ namespace LightNavigation.Platform
                     _currentView = newView;
                     _viewStack.Add(newView);
                     _pageStack.Add(page);
-                    oldAware?.OnRemoved();
+                    oldAware?.OnCovered();
                     newAware?.OnTopmost();
                     tcs.SetResult(true);
                 }
@@ -267,28 +556,32 @@ namespace LightNavigation.Platform
                     // Navigation - add new view BEFORE hiding old view
                     Debug.WriteLine($"{TAG} 👁️ Adding new view while keeping old view visible");
 
-                    // ALWAYS ensure views have TranslateTransform (replace if it's a different type)
-                    if (newView.RenderTransform == null || newView.RenderTransform is not Microsoft.UI.Xaml.Media.TranslateTransform)
+                    // ALWAYS ensure views have CompositeTransform for full animation support
+                    if (newView.RenderTransform == null || newView.RenderTransform is not Microsoft.UI.Xaml.Media.CompositeTransform)
                     {
-                        newView.RenderTransform = new Microsoft.UI.Xaml.Media.TranslateTransform();
+                        newView.RenderTransform = new Microsoft.UI.Xaml.Media.CompositeTransform();
                     }
-                    if (oldView.RenderTransform == null || oldView.RenderTransform is not Microsoft.UI.Xaml.Media.TranslateTransform)
+                    if (oldView.RenderTransform == null || oldView.RenderTransform is not Microsoft.UI.Xaml.Media.CompositeTransform)
                     {
-                        oldView.RenderTransform = new Microsoft.UI.Xaml.Media.TranslateTransform();
+                        oldView.RenderTransform = new Microsoft.UI.Xaml.Media.CompositeTransform();
                     }
 
-                    if (animate)
+                    if (animate && transition != AnimationType.None)
                     {
-                        // Set initial animation state
-                        newView.Opacity = 0.3; // Start slightly transparent
-                        ((Microsoft.UI.Xaml.Media.TranslateTransform)newView.RenderTransform).X = container.ActualWidth * 0.15;
+                        // Set initial animation state based on transition type
+                        ApplyPushAnimationStart(newView, oldView, container, transition);
                         oldView.Visibility = WVisibility.Visible;
                     }
                     else
                     {
                         // No animation - set initial state
                         newView.Opacity = 1;
-                        ((Microsoft.UI.Xaml.Media.TranslateTransform)newView.RenderTransform).X = 0;
+                        var transform = (Microsoft.UI.Xaml.Media.CompositeTransform)newView.RenderTransform;
+                        transform.TranslateX = 0;
+                        transform.TranslateY = 0;
+                        transform.ScaleX = 1;
+                        transform.ScaleY = 1;
+                        transform.Rotation = 0;
                     }
 
                     Debug.WriteLine($"{TAG} OLDVIEW visibility: {oldView.Visibility}");
@@ -305,53 +598,36 @@ namespace LightNavigation.Platform
                     {
                         Debug.WriteLine($"{TAG} ✅ New view rendered");
 
-                        if (animate)
+                        if (animate && transition != AnimationType.None)
                         {
-                            Debug.WriteLine($"{TAG} 🎬 Starting push animation");
+                            Debug.WriteLine($"{TAG} 🎬 Starting push animation - {transition}");
                             Debug.WriteLine($"{TAG} OLDVIEW 2 visibility: {oldView.Visibility}");
 
                             newView.Visibility = WVisibility.Visible;
 
-                            // Create storyboard for animation
-                            var storyboard = new Storyboard();
+                            // Get custom speed and easing from page properties
+                            var customSpeed = LightNavigationPage.GetTransitionSpeed(page);
+                            var customEasing = LightNavigationPage.GetTransitionEasing(page);
 
-                            // Opacity animation
-                            var opacityAnim = new DoubleAnimation
-                            {
-                                From = 0.3,
-                                To = 1.0,
-                                Duration = new Duration(TimeSpan.FromMilliseconds(ANIMATION_IN_DURATION_MS)),
-                                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
-                            };
-                            Storyboard.SetTarget(opacityAnim, newView);
-                            Storyboard.SetTargetProperty(opacityAnim, "Opacity");
-                            storyboard.Children.Add(opacityAnim);
+                            // Use custom speed if set (> 0), otherwise use default duration
+                            var duration = customSpeed > 0 ? customSpeed :
+                                          (transition == AnimationType.WhirlIn3 ? WHIRL3_DURATION_MS : ANIMATION_IN_DURATION_MS);
 
-                            // Translation animation
-                            var translateAnim = new DoubleAnimation
-                            {
-                                From = container.ActualWidth * 0.15,
-                                To = 0,
-                                Duration = new Duration(TimeSpan.FromMilliseconds(ANIMATION_IN_DURATION_MS)),
-                                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
-                            };
-                            Storyboard.SetTarget(translateAnim, newView.RenderTransform);
-                            Storyboard.SetTargetProperty(translateAnim, "X");
-                            storyboard.Children.Add(translateAnim);
+                            // Get easing function based on custom easing or use default
+                            var easingFunction = GetEasingForTransition(customEasing, isForward: true);
+
+                            // Create and configure animations based on transition type
+                            var storyboard = CreatePushAnimationStoryboard(newView, oldView, container, transition, duration, easingFunction);
 
                             storyboard.Completed += (s, e) =>
                             {
-                                // AFTER animation completes, hide old view
-                                newView.Opacity = 1;
-                                if (newView.RenderTransform is Microsoft.UI.Xaml.Media.TranslateTransform t)
-                                {
-                                    t.X = 0;
-                                }
+                                // AFTER animation completes, reset and hide old view
+                                ResetViewTransform(newView);
                                 oldView.Visibility = WVisibility.Collapsed;
                                 Debug.WriteLine($"{TAG} ✅ Animation complete - old view hidden");
 
                                 newAware?.OnTopmost();
-                                oldAware?.OnRemoved();
+                                oldAware?.OnCovered();
                                 tcs.SetResult(true);
                             };
 
@@ -363,7 +639,7 @@ namespace LightNavigation.Platform
                             oldView.Visibility = WVisibility.Collapsed;
 
                             newAware?.OnTopmost();
-                            oldAware?.OnRemoved();
+                            oldAware?.OnCovered();
                             tcs.SetResult(true);
                         }
                     });
@@ -383,7 +659,7 @@ namespace LightNavigation.Platform
             return tcs.Task;
         }
 
-        private Task PopPageAsync(bool animate)
+        private Task PopPageAsync(bool animate, AnimationType transition)
         {
             var tcs = new TaskCompletionSource<bool>();
 
@@ -410,70 +686,55 @@ namespace LightNavigation.Platform
 
                     oldAware?.OnPopping();
 
-                    // ALWAYS ensure both views have TranslateTransform (replace if it's a different type)
-                    if (oldView.RenderTransform == null || oldView.RenderTransform is not Microsoft.UI.Xaml.Media.TranslateTransform)
+                    // ALWAYS ensure both views have CompositeTransform for full animation support
+                    if (oldView.RenderTransform == null || oldView.RenderTransform is not Microsoft.UI.Xaml.Media.CompositeTransform)
                     {
-                        oldView.RenderTransform = new Microsoft.UI.Xaml.Media.TranslateTransform();
+                        oldView.RenderTransform = new Microsoft.UI.Xaml.Media.CompositeTransform();
                     }
-                    if (newView.RenderTransform == null || newView.RenderTransform is not Microsoft.UI.Xaml.Media.TranslateTransform)
+                    if (newView.RenderTransform == null || newView.RenderTransform is not Microsoft.UI.Xaml.Media.CompositeTransform)
                     {
-                        newView.RenderTransform = new Microsoft.UI.Xaml.Media.TranslateTransform();
+                        newView.RenderTransform = new Microsoft.UI.Xaml.Media.CompositeTransform();
                     }
 
                     // ALWAYS make newView visible and reset its transform (it was hidden when we pushed on top)
-                    newView.Opacity = 1;
+                    ResetViewTransform(newView);
                     newView.Visibility = WVisibility.Visible;
-                    ((Microsoft.UI.Xaml.Media.TranslateTransform)newView.RenderTransform).X = 0;
 
-                    if (animate)
+                    if (animate && transition != AnimationType.None)
                     {
                         // Prepare old view for animation
                         oldView.Opacity = 1;
                         oldView.Visibility = WVisibility.Visible;
-                        ((Microsoft.UI.Xaml.Media.TranslateTransform)oldView.RenderTransform).X = 0;
+                        ResetViewTransform(oldView);
                     }
 
                     Debug.WriteLine($"{TAG} OLDVIEW visibility: {oldView.Visibility}");
 
                     newView.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
                     {
-                        if (animate)
+                        if (animate && transition != AnimationType.None)
                         {
-                            Debug.WriteLine($"{TAG} 🎬 Starting pop animation");
+                            Debug.WriteLine($"{TAG} 🎬 Starting pop animation - {transition}");
                             oldView.Visibility = WVisibility.Visible;
 
-                            // Create storyboard for animation
-                            var storyboard = new Storyboard();
+                            // Get custom speed and easing from oldPage properties (page being removed)
+                            var customSpeed = LightNavigationPage.GetTransitionSpeed(oldPage);
+                            var customEasing = LightNavigationPage.GetTransitionEasing(oldPage);
 
-                            // Opacity animation (fade out)
-                            var opacityAnim = new DoubleAnimation
-                            {
-                                From = 1.0,
-                                To = 0.0,
-                                Duration = new Duration(TimeSpan.FromMilliseconds(ANIMATION_OUT_DURATION_MS)),
-                                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
-                            };
-                            Storyboard.SetTarget(opacityAnim, oldView);
-                            Storyboard.SetTargetProperty(opacityAnim, "Opacity");
-                            storyboard.Children.Add(opacityAnim);
+                            // Use custom speed if set (> 0), otherwise use default duration
+                            var duration = customSpeed > 0 ? customSpeed :
+                                          (transition == AnimationType.WhirlIn3 ? WHIRL3_DURATION_MS : ANIMATION_OUT_DURATION_MS);
 
-                            // Translation animation (slide out to right)
-                            var translateAnim = new DoubleAnimation
-                            {
-                                From = 0,
-                                To = container.ActualWidth * 0.3,
-                                Duration = new Duration(TimeSpan.FromMilliseconds(ANIMATION_OUT_DURATION_MS)),
-                                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
-                            };
-                            Storyboard.SetTarget(translateAnim, oldView.RenderTransform);
-                            Storyboard.SetTargetProperty(translateAnim, "X");
-                            storyboard.Children.Add(translateAnim);
+                            // Get easing function based on custom easing or use default
+                            var easingFunction = GetEasingForTransition(customEasing, isForward: false);
+
+                            // Create and configure animations based on transition type
+                            var storyboard = CreatePopAnimationStoryboard(oldView, newView, container, transition, duration, easingFunction);
 
                             storyboard.Completed += (s, e) =>
                             {
                                 container.Children.Remove(oldView);
-                                newView.Opacity = 1;
-                                ((Microsoft.UI.Xaml.Media.TranslateTransform)newView.RenderTransform).X = 0;
+                                ResetViewTransform(newView);
                                 newView.Visibility = WVisibility.Visible;
                                 Debug.WriteLine($"{TAG} ✅ Pop animation complete!");
 
@@ -488,9 +749,8 @@ namespace LightNavigation.Platform
                         {
                             // No animation - just remove old view and ensure new view is visible
                             container.Children.Remove(oldView);
-                            newView.Opacity = 1;
+                            ResetViewTransform(newView);
                             newView.Visibility = WVisibility.Visible;
-                            ((Microsoft.UI.Xaml.Media.TranslateTransform)newView.RenderTransform).X = 0;
                             Debug.WriteLine($"{TAG} ✅ Pop complete");
 
                             oldAware?.OnRemoved();

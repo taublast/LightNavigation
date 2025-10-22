@@ -19,6 +19,11 @@ namespace LightNavigation
         void OnRemoved();
 
         /// <summary>
+        /// Went behind topmost, still in navigation stack
+        /// </summary>
+        void OnCovered();
+
+        /// <summary>
         /// Called just before this page is about to be popped from the navigation stack.
         /// This is called before the navigation animation starts.
         /// </summary>

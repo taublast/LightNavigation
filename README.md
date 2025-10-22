@@ -1,10 +1,12 @@
 # LightNavigation for .NET MAUI
 
-A subclassed `NavigationPage` bringing custom animated transitions and page lifecycle events.
+A subclassed `NavigationPage` bringing custom animated transitions and page lifecycle events. To use for implementing custom navigation scenarios. 
 
 ## 🚀 Features
 
 - ✅ **Smooth Animations** - Platform-native animations with customizations
+- ✅ **Custom Transitions** - 13 built-in transition types (Fade, Zoom, Whirl, Slide, Parallax, etc.)
+- ✅ **Transition Customization** - Control animation speed and easing per page
 - ✅ **Lifecycle Awareness** - `INavigationAware` interface for navigation lifecycle callbacks, dispose resources properly
 - ✅ **Queue-Based Navigation** - Prevents concurrent navigation operations issues
 - ✅ **Zero Dependencies** - No third-party libraries required
@@ -70,13 +72,27 @@ public partial class App : Application
 }
 ```
 
-That's it! Your navigation is now smooth and flash-free.
+or when using FlyoutPage:
+
+```csharp
+
+Detail = new LightNavigationPage(new MainPage());
+
+_navigationRoot = Detail as NavigableElement; //<-- use this for navigation
+
+```
+
+
+### 3. Example App
+
+You can find an example app in the `LightNavigation.TestApp` project included in this repository. Useful for testing and exploring features.
+
 
 ## 📚 Usage
 
 ### Basic Navigation
 
-`LightNavigationPage` works exactly like the standard `NavigationPage`:
+`LightNavigationPage` works exactly like the standard `NavigationPage` in fact it's a subclassed one:
 
 ```csharp
 // Push a page
@@ -91,6 +107,8 @@ await Navigation.PopToRootAsync();
 // With animation control
 await Navigation.PushAsync(new DetailPage(), animated: true);
 ```
+
+all methods have optional `bool animated` parameter.
 
 ### Navigation Lifecycle Awareness
 
@@ -107,10 +125,22 @@ public partial class MyPage : ContentPage, INavigationAware
         InitializeComponent();
     }
 
+	// Called when this page is removed from the navigation stack
+    public void OnRemoved()
+    {
+        System.Diagnostics.Debug.WriteLine("Page has been removed");
+        // Clean up resources, unsubscribe from events, etc.
+
+		this.DisconnectHandlers(); // <-- important to avoid memory leaks
+
+		// Dispose other resources if needed
+    }
+
     // Called just before this page is pushed onto the navigation stack
     public void OnPushing()
     {
         System.Diagnostics.Debug.WriteLine("Page is being pushed");
+		//can start preparing data etc..
     }
 
     // Called when this page becomes the topmost page (visible to user)
@@ -126,6 +156,7 @@ public partial class MyPage : ContentPage, INavigationAware
         System.Diagnostics.Debug.WriteLine("Page is being popped");
     }
 
+
     // Called when this page is removed from the navigation stack
     public void OnRemoved()
     {
@@ -134,6 +165,72 @@ public partial class MyPage : ContentPage, INavigationAware
     }
 }
 ```
+
+### Custom Transitions
+
+LightNavigation supports 13 different transition animations:
+
+```csharp
+// Set a global default transition for all pages
+LightNavigationPage.SetDefaultTransition(AnimationType.Fade);
+
+// Set transition for a specific page
+var page = new DetailPage();
+LightNavigationPage.SetTransition(page, AnimationType.SlideFromBottom);
+await Navigation.PushAsync(page);
+```
+
+**Available Transition Types:**
+- `Default` - Platform native transition
+- `None` - No animation (instant)
+- `SlideFromRight` / `SlideFromLeft` / `SlideFromBottom` / `SlideFromTop`
+- `ParallaxSlideFromRight` / `ParallaxSlideFromLeft` - iOS-style parallax effect
+- `Fade` - Crossfade between pages
+- `ZoomIn` / `ZoomOut` - Zoom from/to center
+- `WhirlIn` - Rotate + zoom with 180° rotation
+- `WhirlIn3` - Rotate + zoom with 3 full rotations (1080°)
+
+> **Note:** All 13 custom transitions are fully implemented on Android, Windows, iOS, and Mac Catalyst.
+
+### Transition Customization
+
+Control animation speed and easing for individual pages:
+
+```csharp
+var page = new DetailPage();
+
+// Custom animation speed (duration in milliseconds, 0 = use default)
+LightNavigationPage.SetTransitionSpeed(page, 500); // 500ms animation
+
+// Custom easing/interpolation (Default = use built-in)
+LightNavigationPage.SetTransitionEasing(page, TransitionEasing.Linear);
+
+await Navigation.PushAsync(page);
+```
+
+**Available Easing Types:**
+- `Default` - Platform default (Decelerate for push, Accelerate for pop)
+- `Linear` - Constant speed
+- `Decelerate` - Fast start, slow end
+- `Accelerate` - Slow start, fast end
+- `AccelerateDecelerate` - Slow-fast-slow
+
+> **Note:** Speed and easing customization is fully supported on all platforms (Android, Windows, iOS, and Mac Catalyst).
+
+**XAML Usage:**
+```xml
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:ln="clr-namespace:LightNavigation;assembly=LightNavigation"
+             x:Class="MyApp.DetailPage"
+             ln:LightNavigationPage.Transition="Fade"
+             ln:LightNavigationPage.TransitionSpeed="300"
+             ln:LightNavigationPage.TransitionEasing="Linear">
+    <!-- Page content -->
+</ContentPage>
+```
+
+
 
 ## 🎨 How It Works
 
@@ -160,6 +257,9 @@ public partial class MyPage : ContentPage, INavigationAware
 
 - **Push Animation**: 150ms (Android/Windows), 300ms (iOS)
 - **Pop Animation**: 100ms (Android), 150ms (Windows), 300ms (iOS)
+- **WhirlIn3 Animation**: 400ms (all platforms) - Extended duration for dramatic 3-rotation effect
+
+All durations can be overridden per-page using `LightNavigationPage.SetTransitionSpeed()`.
 
 ### Navigation Queue
 
@@ -174,6 +274,9 @@ All platforms implement a queue-based navigation system using:
 |---------|------------------------|---------------------|
 | Black flash on transitions | ❌ Yes (Android/Windows) | ✅ No |
 | Smooth animations | ⚠️ Basic | ✅ Platform-optimized |
+| Custom transition types | ❌ No | ✅ 13 built-in types |
+| Animation speed control | ❌ No | ✅ Per-page customization |
+| Easing customization | ❌ No | ✅ 5 easing types |
 | Navigation queue | ❌ No | ✅ Yes |
 | Lifecycle callbacks | ❌ Limited | ✅ Full `INavigationAware` |
 | Concurrent navigation safety | ❌ Can crash | ✅ Protected |
@@ -195,9 +298,10 @@ If you encounter any issues or have questions:
 
 ## 🎯 Roadmap
 
-- [ ] Additional animation styles
+- [x] Custom transition animations (13 types implemented)
+- [x] Transition speed and easing customization
+- [x] iOS/Catalyst transition implementations (all 13 transitions + speed/easing)
 - [ ] Gesture-based navigation
-- [ ] Transition customization API
 - [ ] Performance profiling tools
 
 ---

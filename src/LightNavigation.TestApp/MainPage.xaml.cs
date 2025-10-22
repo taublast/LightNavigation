@@ -51,11 +51,18 @@ public partial class MainPage : ContentPage
         // Auto-scroll to bottom
         MainThread.BeginInvokeOnMainThread(async () =>
         {
-            await Task.Delay(50);
-            var scrollView = LogLabel.Parent as ScrollView;
-            if (scrollView != null)
+            try
             {
-                await scrollView.ScrollToAsync(0, LogLabel.Height, false);
+                await Task.Delay(50);
+                var scrollView = LogLabel.Parent as ScrollView;
+                if (scrollView != null)
+                {
+                    await scrollView.ScrollToAsync(0, LogLabel.Height, false);
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
             }
         });
     }
@@ -217,16 +224,31 @@ public partial class MainPage : ContentPage
 
     private async void OnRandomAnimationPushPopClicked(object sender, EventArgs e)
     {
-        Log($"→ Starting random animation push/pop test with {_currentTransition} (20 cycles)...");
+        Log($"→ Starting random transition test (20 cycles, each with different random transition)...");
         var random = new Random();
+
+        // Get all available animation types (including Default for variety)
+        var animationTypes = Enum.GetValues<AnimationType>().ToArray();
 
         for (int i = 0; i < 20; i++)
         {
             var pushAnimated = random.Next(2) == 1;
             var popAnimated = random.Next(2) == 1;
 
-            await Navigation.PushAsync(CreateDetailPageWithTransition(), animated: pushAnimated);
-            Log($"  Cycle {i + 1}: Pushed ({(pushAnimated ? "animated" : "no anim")})");
+            // Randomly select a global default transition
+            var randomGlobalTransition = animationTypes[random.Next(animationTypes.Length)];
+            LightNavigationPage.SetDefaultTransition(randomGlobalTransition);
+            Log($"  Cycle {i + 1}: Set global default to {randomGlobalTransition}");
+
+            // Randomly select a per-page transition
+            var randomPageTransition = animationTypes[random.Next(animationTypes.Length)];
+
+            // Create page with random per-page transition
+            var page = new DetailPage(_navigationCount++);
+            LightNavigationPage.SetTransition(page, randomPageTransition);
+
+            await Navigation.PushAsync(page, animated: pushAnimated);
+            Log($"  Cycle {i + 1}: Pushed with page={randomPageTransition}, global={randomGlobalTransition} ({(pushAnimated ? "animated" : "no anim")})");
 
             await Task.Delay(50);
 
@@ -236,7 +258,7 @@ public partial class MainPage : ContentPage
             await Task.Delay(50);
         }
 
-        Log("✓ Random animation test completed!");
+        Log("✓ Random transition test completed!");
         UpdateStackInfo();
     }
 

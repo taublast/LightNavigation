@@ -240,7 +240,7 @@ namespace LightNavigation.Platform
                     container.AddView(newView);
                     _currentView = page;
                     _viewStack.Add(page);
-                    oldAware?.OnRemoved();
+                    oldAware?.OnCovered();
                     newAware?.OnTopmost();
                     tcs.SetResult(true);
                 }
@@ -270,7 +270,7 @@ namespace LightNavigation.Platform
                                 oldView.Visibility = ViewStates.Invisible;
 
                                 newAware?.OnTopmost();
-                                oldAware?.OnRemoved();
+                                oldAware?.OnCovered();
                                 tcs.SetResult(true);
                             });
                         }
@@ -280,7 +280,7 @@ namespace LightNavigation.Platform
                             oldView.Visibility = ViewStates.Invisible;
 
                             newAware?.OnTopmost();
-                            oldAware?.OnRemoved();
+                            oldAware?.OnCovered();
                             tcs.SetResult(true);
                         }
                     });
