@@ -568,6 +568,13 @@ namespace LightNavigation.Platform
                 else
                 {
                     // No animation - just pop
+                    // Ensure the previous view is visible before popping
+                    if (newView != null)
+                    {
+                        newView.Hidden = false;
+                        newView.Alpha = 1;
+                    }
+
                     _navigationController.PopViewController(false);
 
                     if (_viewControllerStack.Count > 0)
@@ -721,6 +728,13 @@ namespace LightNavigation.Platform
                 }
 
                 // No animation or animation not possible - just pop immediately
+                // Ensure root view is visible
+                if (rootViewController.View != null)
+                {
+                    rootViewController.View.Hidden = false;
+                    rootViewController.View.Alpha = 1;
+                }
+
                 _navigationController.PopToRootViewController(false);
 
                 // Update stacks
