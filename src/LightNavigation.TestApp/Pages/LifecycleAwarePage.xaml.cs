@@ -55,6 +55,11 @@ public partial class LifecycleAwarePage : ContentPage, INavigationAware
         _logCallback?.Invoke($"LifecycleAware #{_pageNumber}: OnTopmost() - Page is now visible!");
     }
 
+    public void OnCovered()
+    {
+   
+    }
+
     public void OnPopping()
     {
         _callCount++;

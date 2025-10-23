@@ -1,4 +1,5 @@
 using System.Text;
+ 
 using LightNavigation.TestApp.Pages;
 
 namespace LightNavigation.TestApp;
@@ -46,13 +47,17 @@ public partial class MainPage : ContentPage
     {
         var timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
         _logBuilder.AppendLine($"[{timestamp}] {message}");
-        LogLabel.Text = _logBuilder.ToString();
+        var text = _logBuilder.ToString();
+
+        System.Diagnostics.Debug.WriteLine(text);
 
         // Auto-scroll to bottom
         MainThread.BeginInvokeOnMainThread(async () =>
         {
             try
             {
+                LogLabel.Text = text;
+                
                 await Task.Delay(50);
                 var scrollView = LogLabel.Parent as ScrollView;
                 if (scrollView != null)
@@ -143,9 +148,21 @@ public partial class MainPage : ContentPage
 
     private async void OnNavigateDetailNoAnimClicked(object sender, EventArgs e)
     {
-        Log($"→ Navigating to DetailPage (no animation) with {_currentTransition}");
-        await Navigation.PushAsync(CreateDetailPageWithTransition(), animated: false);
-        UpdateStackInfo();
+        MainThread.BeginInvokeOnMainThread(async () =>
+        {
+            try
+            {
+                Log($"→ Navigating to DetailPage (no animation) with {_currentTransition}");
+                await Navigation.PushAsync(CreateDetailPageWithTransition(), animated: false);
+                UpdateStackInfo();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
+        });
+        
+
     }
 
     private async void OnNavigateAwareClicked(object sender, EventArgs e)

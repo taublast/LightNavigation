@@ -240,16 +240,21 @@ await Navigation.PushAsync(page);
 - Uses `FrameLayout` directly (no fragments)
 - Custom view animations with `ViewPropertyAnimator`
 - Sequential navigation queue to prevent concurrent operations
+- **Navigation Handling**: Uses MAUI's `RequestNavigation` command mapper
 
 #### iOS / Mac Catalyst
 - Uses `UINavigationController` with custom view management
-- `UIViewPropertyAnimator` for smooth, interruptible animations
-- Parallax effect for native iOS feel
+- `UIViewPropertyAnimator` for smooth, interruptible animations with `CGAffineTransform` for complex transitions
+- Parallax effect and custom transitions for native iOS feel
+- **Navigation Handling**: Uses event-based navigation (`INavigationPageController` events) for reliable operation
+  - Subscribes to `PushRequested`, `PopRequested`, and `PopToRootRequested` events
+  - This approach ensures compatibility with iOS navigation lifecycle
 
 #### Windows
 - Uses `Grid` container for simplicity
-- `Storyboard` animations with `DoubleAnimation`
+- `Storyboard` animations with `DoubleAnimation` and `CompositeTransform`
 - Dual-view rendering during transitions
+- **Navigation Handling**: Uses MAUI's `RequestNavigation` command mapper
 
 ## 🔍 Technical Details
 

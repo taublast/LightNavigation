@@ -1,6 +1,7 @@
 #if IOS || MACCATALYST
 using Microsoft.Maui;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Controls.Internals;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Platform;
 using System.Collections.Generic;
@@ -76,7 +77,7 @@ namespace LightNavigation.Platform
     /// - Implements IPlatformViewHandler.ViewController to return the UINavigationController
     /// - Custom animation to prevent flashing during transitions
     /// </summary>
-    public class LightNavigationViewHandler : ViewHandler<MauiNavigationPage, NavigationView>, IPlatformViewHandler
+    public class LightNavigationViewHandler : ViewHandler<LightNavigationPage, NavigationView>, IPlatformViewHandler
     {
         private const string TAG = "[LightNavigation_iOS]";
         private const double ANIMATION_IN_DURATION = 0.3; // 300ms for push
@@ -98,7 +99,9 @@ namespace LightNavigation.Platform
 
         public LightNavigationViewHandler() : base(PropertyMapper, CommandMapper)
         {
-            Debug.WriteLine($"{TAG} ✅ Handler created");
+            var hashCode = GetHashCode();
+            Debug.WriteLine($"{TAG} ✅ Handler created - HashCode: {hashCode}");
+            Debug.WriteLine($"{TAG} 📋 CommandMapper registered");
         }
 
         /// <summary>
@@ -144,24 +147,46 @@ namespace LightNavigation.Platform
             }
         }
 
-        public static IPropertyMapper<MauiNavigationPage, LightNavigationViewHandler> PropertyMapper =
-            new PropertyMapper<MauiNavigationPage, LightNavigationViewHandler>(ViewHandler.ViewMapper)
+        public static IPropertyMapper<LightNavigationPage, LightNavigationViewHandler> PropertyMapper =
+            new PropertyMapper<LightNavigationPage, LightNavigationViewHandler>(ViewHandler.ViewMapper)
             {
+                [Microsoft.Maui.Controls.NavigationPage.HasNavigationBarProperty.PropertyName] = MapHasNavigationBar
             };
 
-        public static CommandMapper<MauiNavigationPage, LightNavigationViewHandler> CommandMapper =
-            new CommandMapper<MauiNavigationPage, LightNavigationViewHandler>(ViewHandler.ViewCommandMapper)
+        public static CommandMapper<LightNavigationPage, LightNavigationViewHandler> CommandMapper =
+            new CommandMapper<LightNavigationPage, LightNavigationViewHandler>(ViewHandler.ViewCommandMapper)
             {
                 [nameof(IStackNavigation.RequestNavigation)] = MapRequestNavigation
             };
 
+        private static void MapHasNavigationBar(LightNavigationViewHandler handler, LightNavigationPage view)
+        {
+            if (handler._navigationController != null)
+            {
+                var hasNavBar = Microsoft.Maui.Controls.NavigationPage.GetHasNavigationBar(view);
+                handler._navigationController.NavigationBarHidden = !hasNavBar;
+                Debug.WriteLine($"{TAG} 🔵 NavigationBar visibility changed: {hasNavBar}");
+            }
+        }
+
         protected override NavigationView CreatePlatformView()
         {
             // Create UINavigationController
-            _navigationController = new UINavigationController
+            _navigationController = new UINavigationController();
+
+            // Set initial NavigationBar visibility based on VirtualView
+            // Default is visible unless explicitly hidden
+            if (VirtualView != null)
             {
-                NavigationBarHidden = true
-            };
+                var hasNavBar = Microsoft.Maui.Controls.NavigationPage.GetHasNavigationBar(VirtualView);
+                _navigationController.NavigationBarHidden = !hasNavBar;
+                Debug.WriteLine($"{TAG} 🔵 NavigationBar visibility: {hasNavBar}");
+            }
+            else
+            {
+                // Default to visible
+                _navigationController.NavigationBarHidden = false;
+            }
 
             // Return the navigation controller's View wrapped in NavigationView
             var navigationView = new NavigationView
@@ -176,12 +201,34 @@ namespace LightNavigation.Platform
         {
             base.ConnectHandler(platformView);
 
+            // Subscribe to navigation events from the NavigationPage
+            if (VirtualView is INavigationPageController navController)
+            {
+                navController.PushRequested += OnPushRequested;
+                navController.PopRequested += OnPopRequested;
+                navController.PopToRootRequested += OnPopToRootRequested;
+                Debug.WriteLine($"{TAG} ✅ Subscribed to navigation events");
+            }
+            else
+            {
+                Debug.WriteLine($"{TAG} ⚠️ VirtualView is NOT INavigationPageController!");
+            }
+
             // Manually show initial page if we have one
             if (VirtualView?.CurrentPage != null && MauiContext != null)
             {
                 _ = EnqueueNavigationAsync(async () =>
                 {
                     await ShowPageAsync(VirtualView.CurrentPage, false, AnimationType.Default, isInitial: true);
+
+                    // IMPORTANT: Update navigation bar visibility for the initial page
+                    // The property mapper might not have run yet during initial setup
+                    if (_navigationController != null && VirtualView != null)
+                    {
+                        var hasNavBar = Microsoft.Maui.Controls.NavigationPage.GetHasNavigationBar(VirtualView);
+                        _navigationController.NavigationBarHidden = !hasNavBar;
+                        Debug.WriteLine($"{TAG} 🔵 Initial page NavigationBar visibility: {hasNavBar}");
+                    }
                 });
             }
             else
@@ -192,6 +239,14 @@ namespace LightNavigation.Platform
 
         protected override void DisconnectHandler(NavigationView platformView)
         {
+            // Unsubscribe from navigation events
+            if (VirtualView is INavigationPageController navController)
+            {
+                navController.PushRequested -= OnPushRequested;
+                navController.PopRequested -= OnPopRequested;
+                navController.PopToRootRequested -= OnPopToRootRequested;
+            }
+
             // Clean up
             _navigationQueue.Clear();
             _viewControllerStack.Clear();
@@ -203,14 +258,93 @@ namespace LightNavigation.Platform
             base.DisconnectHandler(platformView);
         }
 
-        private static void MapRequestNavigation(LightNavigationViewHandler handler, MauiNavigationPage view, object? args)
+        private async void OnPushRequested(object? sender, NavigationRequestedEventArgs e)
         {
+            var tcs = new TaskCompletionSource<bool>();
+            e.Task = tcs.Task;
+
+            await EnqueueNavigationAsync(async () =>
+            {
+                try
+                {
+                    var transition = LightNavigationPage.GetEffectiveTransition(e.Page);
+                    Debug.WriteLine($"{TAG} 🟢 OnPushRequested - Page: {e.Page.GetType().Name}, Animated: {e.Animated}, Transition: {transition}");
+                    await ShowPageAsync(e.Page, e.Animated, transition, isInitial: false);
+                    tcs.TrySetResult(true);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"{TAG} ❌ OnPushRequested error: {ex.Message}");
+                    tcs.TrySetException(ex);
+                }
+            });
+        }
+
+        private async void OnPopRequested(object? sender, NavigationRequestedEventArgs e)
+        {
+            Debug.WriteLine($"{TAG} 🟢 OnPopRequested - Animated: {e.Animated}");
+
+            var tcs = new TaskCompletionSource<bool>();
+            e.Task = tcs.Task;
+
+            await EnqueueNavigationAsync(async () =>
+            {
+                try
+                {
+                    var poppingPage = _pageStack.LastOrDefault();
+                    var transition = poppingPage != null
+                        ? LightNavigationPage.GetEffectiveTransition(poppingPage)
+                        : AnimationType.Default;
+
+                    await PopPageAsync(e.Animated, transition);
+                    tcs.TrySetResult(true);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"{TAG} ❌ OnPopRequested error: {ex.Message}");
+                    tcs.TrySetException(ex);
+                }
+            });
+        }
+
+        private async void OnPopToRootRequested(object? sender, NavigationRequestedEventArgs e)
+        {
+            Debug.WriteLine($"{TAG} 🟢 OnPopToRootRequested - Animated: {e.Animated}");
+
+            var tcs = new TaskCompletionSource<bool>();
+            e.Task = tcs.Task;
+
+            await EnqueueNavigationAsync(async () =>
+            {
+                try
+                {
+                    var poppingPage = _pageStack.LastOrDefault();
+                    var transition = poppingPage != null
+                        ? LightNavigationPage.GetEffectiveTransition(poppingPage)
+                        : AnimationType.Default;
+
+                    await PopToRootAsync(e.Animated, transition);
+                    tcs.TrySetResult(true);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"{TAG} ❌ OnPopToRootRequested error: {ex.Message}");
+                    tcs.TrySetException(ex);
+                }
+            });
+        }
+
+        private static void MapRequestNavigation(LightNavigationViewHandler handler, LightNavigationPage view, object? args)
+        {
+            Debug.WriteLine($"{TAG} 🟢 MapRequestNavigation called! Handler HashCode: {handler.GetHashCode()}, args type: {args?.GetType().Name ?? "null"}");
+
             if (args is not NavigationRequest request)
             {
-                Debug.WriteLine($"{TAG} ⚠️ Invalid args");
+                Debug.WriteLine($"{TAG} ⚠️ Invalid args - not NavigationRequest");
                 return;
             }
 
+            Debug.WriteLine($"{TAG} 🟢 Calling HandleNavigationRequest with {request.NavigationStack.Count} pages, Animated: {request.Animated}");
             handler.HandleNavigationRequest(request);
         }
 
@@ -928,6 +1062,8 @@ namespace LightNavigation.Platform
 
             try
             {
+                Debug.WriteLine($"{TAG} 🔵 ShowPageAsync called: page={page.GetType().Name}, animate={animate}, transition={transition}, isInitial={isInitial}");
+
                 if (MauiContext == null)
                 {
                     Debug.WriteLine($"{TAG} ❌ MauiContext is null!");
@@ -942,18 +1078,57 @@ namespace LightNavigation.Platform
                     return tcs.Task;
                 }
 
-                var pageView = page.ToPlatform(MauiContext);
+                // IMPORTANT: Get the page's ViewController (not just the View)
+                // This ensures proper navigation bar integration with title, back button, etc.
+                UIViewController? viewController = null;
+                UIView? pageView = null;
 
-                if (pageView == null)
+                // Try to get the existing ViewController from the page's handler
+                if (page.Handler is IPlatformViewHandler handler && handler.ViewController is UIViewController existingVC)
                 {
-                    Debug.WriteLine($"{TAG} ❌ ToPlatform returned null!");
-                    tcs.SetResult(false);
-                    return tcs.Task;
+                    viewController = existingVC;
+                    pageView = existingVC.View;
+                    Debug.WriteLine($"{TAG} 🔵 Using existing ViewController from page handler");
+                }
+                else
+                {
+                    // Fallback: Create view and wrap in ViewController
+                    pageView = page.ToPlatform(MauiContext);
+                    Debug.WriteLine($"{TAG} 🔵 pageView created: {pageView != null}");
+
+                    if (pageView == null)
+                    {
+                        Debug.WriteLine($"{TAG} ❌ ToPlatform returned null!");
+                        tcs.SetResult(false);
+                        return tcs.Task;
+                    }
+
+                    viewController = new UIViewController();
+                    viewController.View = pageView;
+
+                    Debug.WriteLine($"{TAG} 🔵 Created new ViewController wrapper");
                 }
 
-                // Each page gets its own UIViewController with its own view
-                var viewController = new UIViewController();
-                viewController.View = pageView;
+                // Set the navigation item title from the page
+                if (viewController != null && !string.IsNullOrEmpty(page.Title))
+                {
+                    viewController.NavigationItem.Title = page.Title;
+                    Debug.WriteLine($"{TAG} 🔵 Set navigation title: {page.Title}");
+                }
+
+                // CRITICAL FIX: MAUI's ToPlatform() doesn't always transfer BackgroundColor to the native view
+                // We need to manually apply it from the MAUI page
+                if (pageView != null && page.BackgroundColor != null)
+                {
+                    var mauiBgColor = page.BackgroundColor;
+                    var nativeColor = mauiBgColor.ToPlatform();
+                    pageView.BackgroundColor = nativeColor;
+                    Debug.WriteLine($"{TAG} 🔵 Applied background color: {mauiBgColor} -> {nativeColor}");
+                }
+                else
+                {
+                    Debug.WriteLine($"{TAG} ⚠️ Page BackgroundColor is null, using default");
+                }
 
                 // Get old page and invoke INavigationAware
                 var oldPage = _pageStack.Count > 0 ? _pageStack.Last() : null;
@@ -976,15 +1151,31 @@ namespace LightNavigation.Platform
                 }
                 else
                 {
-                    if (animate && transition != AnimationType.None)
+                    // Check if we should use native iOS animation or custom animation
+                    if (transition == AnimationType.Default)
                     {
+                        // Use native UINavigationController animation (includes navigation bar animation)
+                        Debug.WriteLine($"{TAG} 🔵 Using native iOS push animation");
+                        _navigationController.PushViewController(viewController, animate);
+                        _viewControllerStack.Add(viewController);
+                        _pageStack.Add(page);
+
+                        newAware?.OnTopmost();
+                        oldAware?.OnCovered();
+
+                        tcs.SetResult(true);
+                    }
+                    else if (animate && transition != AnimationType.None)
+                    {
+                        // Custom transition - do manual animation
                         var oldView = _navigationController.TopViewController?.View;
 
-                        if (oldView != null && _navigationController.View != null)
+                        if (oldView != null && _navigationController.View != null && pageView != null)
                         {
                             var containerBounds = oldView.Frame;
                             var animationContainer = _navigationController.View;
 
+                            // Add both views to the container for animation
                             oldView.Hidden = false;
                             animationContainer.AddSubview(oldView);
                             animationContainer.AddSubview(pageView);
@@ -1001,12 +1192,15 @@ namespace LightNavigation.Platform
 
                             animator.AddCompletion((position) =>
                             {
-                                oldView.RemoveFromSuperview();
-                                pageView.RemoveFromSuperview();
-
+                                // Animation complete - now push the view controller
+                                // This adds it to the navigation stack with the navigation bar
                                 _navigationController.PushViewController(viewController, false);
                                 _viewControllerStack.Add(viewController);
                                 _pageStack.Add(page);
+
+                                // Clean up temporary views
+                                oldView.RemoveFromSuperview();
+                                pageView.RemoveFromSuperview();
 
                                 newAware?.OnTopmost();
                                 oldAware?.OnCovered();
@@ -1031,9 +1225,11 @@ namespace LightNavigation.Platform
                     else
                     {
                         // No animation - just push
+                        Debug.WriteLine($"{TAG} 🔵 No animation push - calling PushViewController");
                         _navigationController.PushViewController(viewController, false);
                         _viewControllerStack.Add(viewController);
                         _pageStack.Add(page);
+                        Debug.WriteLine($"{TAG} 🔵 Stack updated - count: {_viewControllerStack.Count}");
 
                         newAware?.OnTopmost();
                         oldAware?.OnCovered();
@@ -1045,9 +1241,11 @@ namespace LightNavigation.Platform
             catch (Exception ex)
             {
                 Debug.WriteLine($"{TAG} ❌ Error in ShowPageAsync: {ex.Message}");
+                Debug.WriteLine($"{TAG} ❌ Stack trace: {ex.StackTrace}");
                 tcs.TrySetException(ex);
             }
 
+            Debug.WriteLine($"{TAG} 🔵 ShowPageAsync returning task");
             return tcs.Task;
         }
 
