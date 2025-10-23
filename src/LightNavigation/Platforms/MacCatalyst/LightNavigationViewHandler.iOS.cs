@@ -214,6 +214,12 @@ namespace LightNavigation.Platform
                 Debug.WriteLine($"{TAG} ⚠️ VirtualView is NOT INavigationPageController!");
             }
 
+            // Subscribe to property changes for BarTextColor, etc.
+            if (VirtualView != null)
+            {
+                VirtualView.PropertyChanged += OnNavigationPagePropertyChanged;
+            }
+
             // Manually show initial page if we have one
             if (VirtualView?.CurrentPage != null && MauiContext != null)
             {
@@ -235,6 +241,9 @@ namespace LightNavigation.Platform
             {
                 Debug.WriteLine($"{TAG} ⚠️ No CurrentPage to show!");
             }
+
+            // Apply initial navbar styling
+            UpdateBarTextColor();
         }
 
         protected override void DisconnectHandler(NavigationView platformView)
@@ -245,6 +254,12 @@ namespace LightNavigation.Platform
                 navController.PushRequested -= OnPushRequested;
                 navController.PopRequested -= OnPopRequested;
                 navController.PopToRootRequested -= OnPopToRootRequested;
+            }
+
+            // Unsubscribe from property changes
+            if (VirtualView != null)
+            {
+                VirtualView.PropertyChanged -= OnNavigationPagePropertyChanged;
             }
 
             // Clean up
@@ -605,16 +620,16 @@ namespace LightNavigation.Platform
                     break;
 
                 case AnimationType.WhirlIn3:
-                    // New view at center but scaled down and rotated 1080 degrees (3 full rotations)
+                    // For WhirlIn3, we need to use layer animation for rotation to preserve the 3 full rotations
+                    // Transform-based rotation gets optimized by iOS to shortest path (0 degrees)
                     newView.Frame = new CoreGraphics.CGRect(
                         0,
                         0,
                         containerBounds.Width,
                         containerBounds.Height);
                     newView.Alpha = 0;
-                    var whirl3Transform = CoreGraphics.CGAffineTransform.MakeRotation((float)(-Math.PI * 6)); // -1080 degrees
-                    whirl3Transform = CoreGraphics.CGAffineTransform.Scale(whirl3Transform, 0.3f, 0.3f);
-                    newView.Transform = whirl3Transform;
+                    // Start with scale only, rotation will be handled by layer animation
+                    newView.Transform = CoreGraphics.CGAffineTransform.MakeScale(0.3f, 0.3f);
                     oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
                     break;
 
@@ -1160,6 +1175,9 @@ namespace LightNavigation.Platform
                         _viewControllerStack.Add(viewController);
                         _pageStack.Add(page);
 
+                        // Update navbar visibility based on the page's attached property
+                        UpdateNavigationBarVisibility(page);
+
                         newAware?.OnTopmost();
                         oldAware?.OnCovered();
 
@@ -1175,23 +1193,44 @@ namespace LightNavigation.Platform
                             var containerBounds = oldView.Frame;
                             var animationContainer = _navigationController.View;
 
+                            // CRITICAL: Force navbar to stay visible during custom animation
+                            // iOS auto-hides navbar when we manipulate view hierarchy
+                            Debug.WriteLine($"{TAG} 🔵 NavBar hidden before animation: {_navigationController.NavigationBarHidden}");
+                            _navigationController.SetNavigationBarHidden(false, false);
+
                             // Add both views to the container for animation
                             oldView.Hidden = false;
                             animationContainer.AddSubview(oldView);
                             animationContainer.AddSubview(pageView);
 
                             // Apply starting state for the transition
+                            Debug.WriteLine($"{TAG} 🎬 Applying push animation start for transition: {transition}");
                             ApplyPushAnimationStart(pageView, oldView, containerBounds, transition);
 
                             // Get animation duration and curve
                             var duration = GetAnimationDuration(page, isPush: true);
                             var curve = GetAnimationCurve(page, isPush: true);
 
-                            // Create the animation
+                            Debug.WriteLine($"{TAG} 🎬 Creating animator for transition: {transition}, duration: {duration}");
+
+                            // Special handling for WhirlIn3 - add rotation animation via CALayer
+                            if (transition == AnimationType.WhirlIn3)
+                            {
+                                var rotationAnimation = CoreAnimation.CABasicAnimation.FromKeyPath("transform.rotation.z");
+                                rotationAnimation.From = Foundation.NSNumber.FromDouble(-Math.PI * 6); // -1080 degrees
+                                rotationAnimation.To = Foundation.NSNumber.FromDouble(0);
+                                rotationAnimation.Duration = duration;
+                                rotationAnimation.TimingFunction = CoreAnimation.CAMediaTimingFunction.FromName(CoreAnimation.CAMediaTimingFunction.EaseInEaseOut);
+                                pageView.Layer.AddAnimation(rotationAnimation, "whirl3Rotation");
+                            }
+
+                            // Create the animation for scale/alpha/position
                             var animator = new UIViewPropertyAnimator(duration, curve, CreatePushAnimation(pageView, oldView, containerBounds, transition));
 
                             animator.AddCompletion((position) =>
                             {
+                                Debug.WriteLine($"{TAG} 🔵 NavBar hidden after animation: {_navigationController.NavigationBarHidden}");
+
                                 // Animation complete - now push the view controller
                                 // This adds it to the navigation stack with the navigation bar
                                 _navigationController.PushViewController(viewController, false);
@@ -1201,6 +1240,9 @@ namespace LightNavigation.Platform
                                 // Clean up temporary views
                                 oldView.RemoveFromSuperview();
                                 pageView.RemoveFromSuperview();
+
+                                // Update navbar visibility based on the page's attached property
+                                UpdateNavigationBarVisibility(page);
 
                                 newAware?.OnTopmost();
                                 oldAware?.OnCovered();
@@ -1287,7 +1329,29 @@ namespace LightNavigation.Platform
                 var newAware = newPage as INavigationAware;
                 var oldAware = oldPage as INavigationAware;
 
-                if (animate && transition != AnimationType.None)
+                // Check if we should use native iOS animation or custom animation
+                if (transition == AnimationType.Default)
+                {
+                    // Use native UINavigationController animation (includes navigation bar animation)
+                    Debug.WriteLine($"{TAG} 🔵 Using native iOS pop animation");
+                    _navigationController.PopViewController(animate);
+
+                    if (_viewControllerStack.Count > 0)
+                    {
+                        _viewControllerStack.RemoveAt(_viewControllerStack.Count - 1);
+                    }
+
+                    if (_pageStack.Count > 0)
+                    {
+                        _pageStack.RemoveAt(_pageStack.Count - 1);
+                    }
+
+                    oldAware?.OnRemoved();
+                    newAware?.OnTopmost();
+
+                    tcs.SetResult(true);
+                }
+                else if (animate && transition != AnimationType.None)
                 {
                     if (oldView != null && newView != null && _navigationController.View != null)
                     {
@@ -1578,6 +1642,108 @@ namespace LightNavigation.Platform
             }
 
             return tcs.Task;
+        }
+
+        // Property change handler for NavigationPage properties
+        private void OnNavigationPagePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == Microsoft.Maui.Controls.NavigationPage.BarTextColorProperty.PropertyName)
+            {
+                UpdateBarTextColor();
+            }
+            else if (e.PropertyName == Microsoft.Maui.Controls.NavigationPage.BarBackgroundColorProperty.PropertyName)
+            {
+                UpdateBarBackground();
+            }
+        }
+
+        // Copied from MAUI NavigationRenderer - handles BarTextColor styling
+        private void UpdateBarTextColor()
+        {
+            if (_navigationController?.NavigationBar == null || VirtualView == null)
+                return;
+
+            var barTextColor = VirtualView.BarTextColor;
+
+            // Determine new title text attributes via global static data
+            var globalTitleTextAttributes = UINavigationBar.Appearance.TitleTextAttributes;
+            var titleTextAttributes = new UIKit.UIStringAttributes
+            {
+                ForegroundColor = barTextColor == null ? globalTitleTextAttributes?.ForegroundColor : barTextColor.ToPlatform(),
+                Font = globalTitleTextAttributes?.Font
+            };
+
+            // Determine new large title text attributes via global static data
+            var largeTitleTextAttributes = titleTextAttributes;
+            if (OperatingSystem.IsIOSVersionAtLeast(11))
+            {
+                var globalLargeTitleTextAttributes = UINavigationBar.Appearance.LargeTitleTextAttributes;
+
+                largeTitleTextAttributes = new UIKit.UIStringAttributes
+                {
+                    ForegroundColor = barTextColor == null ? globalLargeTitleTextAttributes?.ForegroundColor : barTextColor.ToPlatform(),
+                    Font = globalLargeTitleTextAttributes?.Font
+                };
+            }
+
+            if (OperatingSystem.IsIOSVersionAtLeast(13))
+            {
+                if (_navigationController.NavigationBar.CompactAppearance != null)
+                {
+                    _navigationController.NavigationBar.CompactAppearance.TitleTextAttributes = titleTextAttributes;
+                    _navigationController.NavigationBar.CompactAppearance.LargeTitleTextAttributes = largeTitleTextAttributes;
+                }
+
+                if (_navigationController.NavigationBar.StandardAppearance != null)
+                {
+                    _navigationController.NavigationBar.StandardAppearance.TitleTextAttributes = titleTextAttributes;
+                    _navigationController.NavigationBar.StandardAppearance.LargeTitleTextAttributes = largeTitleTextAttributes;
+                }
+
+                if (_navigationController.NavigationBar.ScrollEdgeAppearance != null)
+                {
+                    _navigationController.NavigationBar.ScrollEdgeAppearance.TitleTextAttributes = titleTextAttributes;
+                    _navigationController.NavigationBar.ScrollEdgeAppearance.LargeTitleTextAttributes = largeTitleTextAttributes;
+                }
+            }
+            else
+            {
+                _navigationController.NavigationBar.TitleTextAttributes = titleTextAttributes;
+
+                if (OperatingSystem.IsIOSVersionAtLeast(11))
+                    _navigationController.NavigationBar.LargeTitleTextAttributes = largeTitleTextAttributes;
+            }
+
+            // Set TintColor (i.e. Back Button arrow and Text)
+            var iconColor = barTextColor;
+
+            _navigationController.NavigationBar.TintColor = iconColor == null
+                ? UINavigationBar.Appearance.TintColor
+                : iconColor.ToPlatform();
+
+            Debug.WriteLine($"{TAG} 🎨 Updated BarTextColor to: {barTextColor}");
+        }
+
+        // Placeholder for bar background (can be implemented later)
+        private void UpdateBarBackground()
+        {
+            // TODO: Implement if needed
+            Debug.WriteLine($"{TAG} 🎨 UpdateBarBackground called");
+        }
+
+        // Update navigation bar visibility based on the current page's attached property
+        private void UpdateNavigationBarVisibility(Page? page)
+        {
+            if (_navigationController == null)
+                return;
+
+            if (page != null)
+            {
+                // Check the attached property on the page
+                var hasNavBar = Microsoft.Maui.Controls.NavigationPage.GetHasNavigationBar(page);
+                _navigationController.SetNavigationBarHidden(!hasNavBar, false);
+                Debug.WriteLine($"{TAG} 🔵 Updated NavigationBar visibility for {page.GetType().Name}: {hasNavBar}");
+            }
         }
     }
 }

@@ -5,6 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     Title="Detail Page"
     NavigationPage.HasNavigationBar="True"
+    NavigationPage.BarTextColor="Black"
     Background="Red">
 
     <ScrollView BackgroundColor="Transparent">
