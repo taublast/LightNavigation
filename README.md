@@ -11,6 +11,11 @@ A subclassed `NavigationPage` bringing custom animated transitions and page life
 - ✅ **Queue-Based Navigation** - Prevents concurrent navigation operations issues
 - ✅ **Zero Dependencies** - No third-party libraries required
 
+Solves:
+
+* https://github.com/dotnet/maui/issues/11809
+* https://github.com/dotnet/maui/issues/16621
+
 ## 📦 Installation
 
 ### NuGet Package Manager
