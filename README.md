@@ -29,7 +29,7 @@ Install-Package LightNavigation
 
 ### 1. Register the Handlers
 
-In your `MauiProgram.cs`, add the `ConfigureLightNavigation()` call:
+In your `MauiProgram.cs`, add the `UseLightNavigation()` call:
 
 ```csharp
 using LightNavigation;
@@ -41,7 +41,7 @@ public static class MauiProgram
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()
-            .ConfigureLightNavigation()  // ← Add this line
+            .UseLightNavigation()  // ← Add this line
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");

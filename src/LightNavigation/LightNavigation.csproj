@@ -8,10 +8,10 @@
     <Nullable>enable</Nullable>
 
     <!-- NuGet Package Metadata -->
-    <PackageId>LightNavigation</PackageId>
-    <Version>1.0.0</Version>
+    <PackageId>Plugin.Maui.LightNavigation</PackageId>
+    <Version>1.0.1</Version>
     <Authors>Nick Kovalsky aka AppoMobi</Authors>
-    <Product>LightNavigation</Product>
+    <Product>Plugin.Maui.LightNavigation</Product>
     <Description>A subclassed NavigationPage for .NET MAUI with animated page transitions. Adds navigation lifecycle awareness.</Description>
     <PackageTags>maui;navigation;navigationpage;android;ios;windows;performance</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
