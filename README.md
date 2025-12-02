@@ -21,13 +21,13 @@ Solves:
 ### NuGet Package Manager
 
 ```bash
-dotnet add package LightNavigation
+dotnet add package Plugin.Maui.LightNavigation
 ```
 
 ### Package Manager Console
 
 ```powershell
-Install-Package LightNavigation
+Install-Package Plugin.Maui.LightNavigation
 ```
 
 ## 🔧 Setup
