@@ -12,7 +12,7 @@ namespace LightNavigation
         /// Registers the LightNavigationPage handlers for all platforms.
         /// Call this in your MauiProgram.cs CreateMauiApp method:
         /// <code>
-        /// builder.ConfigureLightNavigation();
+        /// builder.UseLightNavigation();
         /// </code>
         /// </summary>
         /// <param name="builder">The MauiAppBuilder to configure.</param>
