@@ -39,7 +39,7 @@ namespace LightNavigation.Platform
         private FrameworkElement? _currentView;
 
         // Animation settings
-        private const int ANIMATION_IN_DURATION_MS = 150;
+        private const int ANIMATION_IN_DURATION_MS = 200;
         private const int ANIMATION_OUT_DURATION_MS = 150;
         private const int WHIRL3_DURATION_MS = 400; // Longer duration for 3-rotation whirl effect
 
