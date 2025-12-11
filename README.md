@@ -21,7 +21,8 @@ Solves:
 * Lifecycle awareness for pages, so they now "know" if they are covered/removed/went on top etc to properly manage data and resources.
 
 ## 🎈 What's New in v1.2.0
-* Apply safe insets to MAUI page before starting navigation transition, eliminating a "UI jump" artifact after animation finished in non-fullscreen conditions.
+* iOS: reworked transitions to work smoothly with native viewcontrollers/navbars
+* Android: applying safe insets to MAUI page before starting navigation transition for a smooth ending 
 
 ## 📦 Installation
 
