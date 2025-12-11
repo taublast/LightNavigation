@@ -255,6 +255,17 @@ namespace LightNavigation.Platform
 
                     container.AddView(newView);
 
+                    // Fix for safe insets issue: Ensure the new view receives window insets immediately
+                    // This prevents the content from jumping to safe insets after animation completes
+                    if (Android.OS.Build.VERSION.SdkInt >= Android.OS.BuildVersionCodes.M && container.RootWindowInsets != null)
+                    {
+                        newView.DispatchApplyWindowInsets(container.RootWindowInsets);
+                    }
+                    else
+                    {
+                        newView.RequestApplyInsets();
+                    }
+
                     _viewStack.Add(page);
 
                     // Wait for new view to be laid out and rendered
