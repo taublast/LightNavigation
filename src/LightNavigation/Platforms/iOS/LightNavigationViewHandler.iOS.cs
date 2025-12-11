@@ -9,6 +9,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using UIKit;
+using CoreAnimation;
 using Debug = System.Diagnostics.Debug;
 using MauiNavigationPage = Microsoft.Maui.Controls.NavigationPage;
 using MauiPage = Microsoft.Maui.Controls.Page;
@@ -75,14 +76,11 @@ namespace LightNavigation.Platform
     /// - Uses UINavigationController for proper iOS navigation
     /// - Wraps it in a NavigationView (UIView) to satisfy ViewHandler<,UIView> constraint
     /// - Implements IPlatformViewHandler.ViewController to return the UINavigationController
-    /// - Custom animation to prevent flashing during transitions
+    /// - Uses LightNavigationControllerDelegate and LightNavigationTransition for native custom transitions
     /// </summary>
     public class LightNavigationViewHandler : ViewHandler<LightNavigationPage, NavigationView>, IPlatformViewHandler
     {
         private const string TAG = "[LightNavigation_iOS]";
-        private const double ANIMATION_IN_DURATION = 0.3; 
-        private const double ANIMATION_OUT_DURATION = 0.25; 
-        private const double WHIRL3_DURATION = 0.4; // 400ms for WhirlIn3
 
         private UINavigationController? _navigationController;
         private readonly List<UIViewController> _viewControllerStack = new();
@@ -173,6 +171,10 @@ namespace LightNavigation.Platform
         {
             // Create UINavigationController
             _navigationController = new UINavigationController();
+            
+            // Assign our custom delegate to handle transitions
+            _navigationController.Delegate = new LightNavigationControllerDelegate();
+            Debug.WriteLine($"{TAG} ✅ Assigned LightNavigationControllerDelegate");
 
             // Set initial NavigationBar visibility based on VirtualView
             // Default is visible unless explicitly hidden
@@ -267,8 +269,6 @@ namespace LightNavigation.Platform
                 Debug.WriteLine($"{TAG} 🔵 Initial page NavigationBar visibility: {hasNavBar}");
                 if (hasNavBar)
                 {
-
-
                     UpdateBarTextColor();
                 }
             }
@@ -460,643 +460,6 @@ namespace LightNavigation.Platform
             });
         }
 
-        /// <summary>
-        /// Gets the animation duration based on the transition type and page settings.
-        /// </summary>
-        private double GetAnimationDuration(MauiPage page, bool isPush)
-        {
-            var customSpeed = LightNavigationPage.GetTransitionSpeed(page);
-            if (customSpeed > 0)
-            {
-                return customSpeed / 1000.0; // Convert ms to seconds
-            }
-
-            var transition = LightNavigationPage.GetEffectiveTransition(page);
-            if (transition == AnimationType.WhirlIn3)
-            {
-                return WHIRL3_DURATION;
-            }
-
-            return isPush ? ANIMATION_IN_DURATION : ANIMATION_OUT_DURATION;
-        }
-
-        /// <summary>
-        /// Gets the UIViewAnimationCurve based on the transition easing setting.
-        /// </summary>
-        private UIViewAnimationCurve GetAnimationCurve(MauiPage page, bool isPush)
-        {
-            var easing = LightNavigationPage.GetTransitionEasing(page);
-
-            switch (easing)
-            {
-                case TransitionEasing.Linear:
-                    return UIViewAnimationCurve.Linear;
-                case TransitionEasing.Decelerate:
-                    return UIViewAnimationCurve.EaseOut;
-                case TransitionEasing.Accelerate:
-                    return UIViewAnimationCurve.EaseIn;
-                case TransitionEasing.AccelerateDecelerate:
-                    return UIViewAnimationCurve.EaseInOut;
-                case TransitionEasing.Default:
-                default:
-                    // Use iOS standard: EaseOut for push, EaseIn for pop
-                    return isPush ? UIViewAnimationCurve.EaseOut : UIViewAnimationCurve.EaseIn;
-            }
-        }
-
-        /// <summary>
-        /// Applies the initial position/state for the new view before push animation.
-        /// </summary>
-        private void ApplyPushAnimationStart(UIView newView, UIView oldView, CoreGraphics.CGRect containerBounds, AnimationType transition)
-        {
-            switch (transition)
-            {
-                case AnimationType.Default:
-                case AnimationType.SlideFromRight:
-                    // Start off-screen to the right
-                    newView.Frame = new CoreGraphics.CGRect(
-                        containerBounds.Width,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    newView.Alpha = 1;
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    break;
-
-                case AnimationType.SlideFromLeft:
-                    // Start off-screen to the left
-                    newView.Frame = new CoreGraphics.CGRect(
-                        -containerBounds.Width,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    newView.Alpha = 1;
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    break;
-
-                case AnimationType.SlideFromBottom:
-                    // Start off-screen at the bottom
-                    newView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        containerBounds.Height,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    newView.Alpha = 1;
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    break;
-
-                case AnimationType.SlideFromTop:
-                    // Start off-screen at the top
-                    newView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        -containerBounds.Height,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    newView.Alpha = 1;
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    break;
-
-                case AnimationType.ParallaxSlideFromRight:
-                    // New view starts off-screen to the right
-                    newView.Frame = new CoreGraphics.CGRect(
-                        containerBounds.Width,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    newView.Alpha = 1;
-                    // Old view starts at center
-                    oldView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    break;
-
-                case AnimationType.ParallaxSlideFromLeft:
-                    // New view starts off-screen to the left
-                    newView.Frame = new CoreGraphics.CGRect(
-                        -containerBounds.Width,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    newView.Alpha = 1;
-                    // Old view starts at center
-                    oldView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    break;
-
-                case AnimationType.Fade:
-                    // New view at center but transparent
-                    newView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    newView.Alpha = 0;
-                    oldView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    oldView.Alpha = 1;
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    break;
-
-                case AnimationType.ZoomIn:
-                    // New view at center but scaled down
-                    newView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    newView.Alpha = 0;
-                    newView.Transform = CoreGraphics.CGAffineTransform.MakeScale(0.3f, 0.3f);
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    break;
-
-                case AnimationType.ZoomOut:
-                    // New view at center but scaled up
-                    newView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    newView.Alpha = 0;
-                    newView.Transform = CoreGraphics.CGAffineTransform.MakeScale(1.5f, 1.5f);
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    break;
-
-                case AnimationType.WhirlIn:
-                    // New view at center but scaled down and rotated 180 degrees
-                    newView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    newView.Alpha = 0;
-                    var whirlTransform = CoreGraphics.CGAffineTransform.MakeRotation((float)(-Math.PI)); // -180 degrees
-                    whirlTransform = CoreGraphics.CGAffineTransform.Scale(whirlTransform, 0.3f, 0.3f);
-                    newView.Transform = whirlTransform;
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    break;
-
-                case AnimationType.WhirlIn3:
-                    // For WhirlIn3, we need to use layer animation for rotation to preserve the 3 full rotations
-                    // Transform-based rotation gets optimized by iOS to shortest path (0 degrees)
-                    newView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    newView.Alpha = 0;
-                    // Start with scale only, rotation will be handled by layer animation
-                    newView.Transform = CoreGraphics.CGAffineTransform.MakeScale(0.3f, 0.3f);
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    break;
-
-                case AnimationType.None:
-                    // No animation - just position at center
-                    newView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    newView.Alpha = 1;
-                    newView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    break;
-            }
-        }
-
-        /// <summary>
-        /// Creates the push animation action.
-        /// </summary>
-        private Action CreatePushAnimation(UIView newView, UIView oldView, CoreGraphics.CGRect containerBounds, AnimationType transition)
-        {
-            return () =>
-            {
-                switch (transition)
-                {
-                    case AnimationType.Default:
-                    case AnimationType.SlideFromRight:
-                        // Slide new view to center
-                        newView.Frame = new CoreGraphics.CGRect(
-                            0,
-                            0,
-                            containerBounds.Width,
-                            containerBounds.Height);
-                        // Old view stays in place
-                        break;
-
-                    case AnimationType.SlideFromLeft:
-                        // Slide new view from left to center
-                        newView.Frame = new CoreGraphics.CGRect(
-                            0,
-                            0,
-                            containerBounds.Width,
-                            containerBounds.Height);
-                        break;
-
-                    case AnimationType.SlideFromBottom:
-                        // Slide new view from bottom to center
-                        newView.Frame = new CoreGraphics.CGRect(
-                            0,
-                            0,
-                            containerBounds.Width,
-                            containerBounds.Height);
-                        break;
-
-                    case AnimationType.SlideFromTop:
-                        // Slide new view from top to center
-                        newView.Frame = new CoreGraphics.CGRect(
-                            0,
-                            0,
-                            containerBounds.Width,
-                            containerBounds.Height);
-                        break;
-
-                    case AnimationType.ParallaxSlideFromRight:
-                        // Slide new view to center
-                        newView.Frame = new CoreGraphics.CGRect(
-                            0,
-                            0,
-                            containerBounds.Width,
-                            containerBounds.Height);
-                        // Slide old view to the left (parallax effect)
-                        oldView.Frame = new CoreGraphics.CGRect(
-                            -containerBounds.Width * 0.3,
-                            0,
-                            containerBounds.Width,
-                            containerBounds.Height);
-                        break;
-
-                    case AnimationType.ParallaxSlideFromLeft:
-                        // Slide new view to center
-                        newView.Frame = new CoreGraphics.CGRect(
-                            0,
-                            0,
-                            containerBounds.Width,
-                            containerBounds.Height);
-                        // Slide old view to the right (parallax effect)
-                        oldView.Frame = new CoreGraphics.CGRect(
-                            containerBounds.Width * 0.3,
-                            0,
-                            containerBounds.Width,
-                            containerBounds.Height);
-                        break;
-
-                    case AnimationType.Fade:
-                        // Fade in new view, fade out old view
-                        newView.Alpha = 1;
-                        oldView.Alpha = 0;
-                        break;
-
-                    case AnimationType.ZoomIn:
-                        // Zoom in new view and fade in
-                        newView.Alpha = 1;
-                        newView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                        break;
-
-                    case AnimationType.ZoomOut:
-                        // Zoom out new view to normal and fade in
-                        newView.Alpha = 1;
-                        newView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                        break;
-
-                    case AnimationType.WhirlIn:
-                        // Rotate to 0 degrees, scale to 1, and fade in
-                        newView.Alpha = 1;
-                        newView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                        break;
-
-                    case AnimationType.WhirlIn3:
-                        // Rotate to 0 degrees, scale to 1, and fade in
-                        newView.Alpha = 1;
-                        newView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                        break;
-
-                    case AnimationType.None:
-                        // No animation
-                        break;
-                }
-            };
-        }
-
-        /// <summary>
-        /// Applies the initial position/state for pop animation (reverse of push).
-        /// </summary>
-        private void ApplyPopAnimationStart(UIView oldView, UIView newView, CoreGraphics.CGRect containerBounds, AnimationType transition)
-        {
-            switch (transition)
-            {
-                case AnimationType.Default:
-                case AnimationType.SlideFromRight:
-                    // Old view at center
-                    oldView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    // New (previous) view at left (will be revealed)
-                    newView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    break;
-
-                case AnimationType.SlideFromLeft:
-                    // Old view at center
-                    oldView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    // New (previous) view at center
-                    newView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    break;
-
-                case AnimationType.SlideFromBottom:
-                    // Old view at center
-                    oldView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    newView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    break;
-
-                case AnimationType.SlideFromTop:
-                    // Old view at center
-                    oldView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    newView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    break;
-
-                case AnimationType.ParallaxSlideFromRight:
-                    // Old view at center
-                    oldView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    // New (previous) view slightly to the left
-                    newView.Frame = new CoreGraphics.CGRect(
-                        -containerBounds.Width * 0.3,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    break;
-
-                case AnimationType.ParallaxSlideFromLeft:
-                    // Old view at center
-                    oldView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    // New (previous) view slightly to the right
-                    newView.Frame = new CoreGraphics.CGRect(
-                        containerBounds.Width * 0.3,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    break;
-
-                case AnimationType.Fade:
-                    // Both at center
-                    oldView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    oldView.Alpha = 1;
-                    newView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    newView.Alpha = 0;
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    newView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    break;
-
-                case AnimationType.ZoomIn:
-                    // Reverse: old view will zoom out and fade out
-                    oldView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    oldView.Alpha = 1;
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    newView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    newView.Alpha = 1;
-                    newView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    break;
-
-                case AnimationType.ZoomOut:
-                    // Reverse: old view will zoom in and fade out
-                    oldView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    oldView.Alpha = 1;
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    newView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    newView.Alpha = 1;
-                    newView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    break;
-
-                case AnimationType.WhirlIn:
-                case AnimationType.WhirlIn3:
-                    // Reverse: old view will whirl out
-                    oldView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    oldView.Alpha = 1;
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    newView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    newView.Alpha = 1;
-                    newView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    break;
-
-                case AnimationType.None:
-                    // No animation
-                    oldView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    oldView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    newView.Frame = new CoreGraphics.CGRect(
-                        0,
-                        0,
-                        containerBounds.Width,
-                        containerBounds.Height);
-                    newView.Transform = CoreGraphics.CGAffineTransform.MakeIdentity();
-                    break;
-            }
-        }
-
-        /// <summary>
-        /// Creates the pop animation action (reverse of push).
-        /// </summary>
-        private Action CreatePopAnimation(UIView oldView, UIView newView, CoreGraphics.CGRect containerBounds, AnimationType transition)
-        {
-            return () =>
-            {
-                switch (transition)
-                {
-                    case AnimationType.Default:
-                    case AnimationType.SlideFromRight:
-                        // Slide old view out to the right
-                        oldView.Frame = new CoreGraphics.CGRect(
-                            containerBounds.Width,
-                            0,
-                            containerBounds.Width,
-                            containerBounds.Height);
-                        break;
-
-                    case AnimationType.SlideFromLeft:
-                        // Slide old view out to the left
-                        oldView.Frame = new CoreGraphics.CGRect(
-                            -containerBounds.Width,
-                            0,
-                            containerBounds.Width,
-                            containerBounds.Height);
-                        break;
-
-                    case AnimationType.SlideFromBottom:
-                        // Slide old view out to the bottom
-                        oldView.Frame = new CoreGraphics.CGRect(
-                            0,
-                            containerBounds.Height,
-                            containerBounds.Width,
-                            containerBounds.Height);
-                        break;
-
-                    case AnimationType.SlideFromTop:
-                        // Slide old view out to the top
-                        oldView.Frame = new CoreGraphics.CGRect(
-                            0,
-                            -containerBounds.Height,
-                            containerBounds.Width,
-                            containerBounds.Height);
-                        break;
-
-                    case AnimationType.ParallaxSlideFromRight:
-                        // Slide old view out to the right
-                        oldView.Frame = new CoreGraphics.CGRect(
-                            containerBounds.Width,
-                            0,
-                            containerBounds.Width,
-                            containerBounds.Height);
-                        // Slide new view back to center
-                        newView.Frame = new CoreGraphics.CGRect(
-                            0,
-                            0,
-                            containerBounds.Width,
-                            containerBounds.Height);
-                        break;
-
-                    case AnimationType.ParallaxSlideFromLeft:
-                        // Slide old view out to the left
-                        oldView.Frame = new CoreGraphics.CGRect(
-                            -containerBounds.Width,
-                            0,
-                            containerBounds.Width,
-                            containerBounds.Height);
-                        // Slide new view back to center
-                        newView.Frame = new CoreGraphics.CGRect(
-                            0,
-                            0,
-                            containerBounds.Width,
-                            containerBounds.Height);
-                        break;
-
-                    case AnimationType.Fade:
-                        // Fade out old view, fade in new view
-                        oldView.Alpha = 0;
-                        newView.Alpha = 1;
-                        break;
-
-                    case AnimationType.ZoomIn:
-                        // Reverse: zoom out old view and fade out
-                        oldView.Alpha = 0;
-                        oldView.Transform = CoreGraphics.CGAffineTransform.MakeScale(0.3f, 0.3f);
-                        break;
-
-                    case AnimationType.ZoomOut:
-                        // Reverse: zoom in old view and fade out
-                        oldView.Alpha = 0;
-                        oldView.Transform = CoreGraphics.CGAffineTransform.MakeScale(1.5f, 1.5f);
-                        break;
-
-                    case AnimationType.WhirlIn:
-                        // Reverse: whirl out with 180 degree rotation
-                        oldView.Alpha = 0;
-                        var whirlOutTransform = CoreGraphics.CGAffineTransform.MakeRotation((float)Math.PI); // 180 degrees
-                        whirlOutTransform = CoreGraphics.CGAffineTransform.Scale(whirlOutTransform, 0.3f, 0.3f);
-                        oldView.Transform = whirlOutTransform;
-                        break;
-
-                    case AnimationType.WhirlIn3:
-                        // Reverse: whirl out with 1080 degree rotation
-                        oldView.Alpha = 0;
-                        var whirl3OutTransform = CoreGraphics.CGAffineTransform.MakeRotation((float)(Math.PI * 6)); // 1080 degrees
-                        whirl3OutTransform = CoreGraphics.CGAffineTransform.Scale(whirl3OutTransform, 0.3f, 0.3f);
-                        oldView.Transform = whirl3OutTransform;
-                        break;
-
-                    case AnimationType.None:
-                        // No animation
-                        break;
-                }
-            };
-        }
-
         private Task ShowPageAsync(MauiPage page, bool animate, AnimationType transition, bool isInitial)
         {
             var tcs = new TaskCompletionSource<bool>();
@@ -1119,37 +482,23 @@ namespace LightNavigation.Platform
                     return tcs.Task;
                 }
 
-                // IMPORTANT: Get the page's ViewController (not just the View)
-                // This ensures proper navigation bar integration with title, back button, etc.
-                UIViewController? viewController = null;
-                UIView? pageView = null;
-
-                // Try to get the existing ViewController from the page's handler
-                //if (page.Handler is IPlatformViewHandler handler && handler.ViewController is UIViewController existingVC)
-                //{
-                //    viewController = existingVC;
-                //    pageView = existingVC.View;
-                //    Debug.WriteLine($"{TAG} 🔵 Using existing ViewController from page handler");
-                //}
-                //else
+                // Create view and wrap in LightPageViewController
+                var pageView = page.ToPlatform(MauiContext);
+                
+                if (pageView == null)
                 {
-                    // Fallback: Create view and wrap in ViewController
-                    pageView = page.ToPlatform(MauiContext);
-                    Debug.WriteLine($"{TAG} 🔵 pageView created: {pageView != null}");
-
-                    if (pageView == null)
-                    {
-                        Debug.WriteLine($"{TAG} ❌ ToPlatform returned null!");
-                        tcs.SetResult(false);
-                        return tcs.Task;
-                    }
-
-                    viewController = new UIViewController();
-                    viewController.View = pageView;
-
-                    Debug.WriteLine($"{TAG} 🔵 Created new ViewController wrapper");
+                    Debug.WriteLine($"{TAG} ❌ ToPlatform returned null!");
+                    tcs.SetResult(false);
+                    return tcs.Task;
                 }
 
+                // Use our custom ViewController that holds the MauiPage reference
+                // This is CRITICAL for the Delegate to find the transition settings
+                var viewController = new LightPageViewController();
+                viewController.View = pageView;
+                viewController.MauiPage = page;
+
+                Debug.WriteLine($"{TAG} 🔵 Created LightPageViewController");
 
                 // Get old page and invoke INavigationAware
                 var oldPage = _pageStack.Count > 0 ? _pageStack.Last() : null;
@@ -1177,118 +526,42 @@ namespace LightNavigation.Platform
                 {
                     SetupNewPage(_navigationController, page, viewController);
 
-                    // Check if we should use native iOS animation or custom animation
-                    if (transition == AnimationType.Default)
+                    // Determine if we should animate
+                    bool actuallyAnimate = animate && transition != AnimationType.None;
+                    
+                    Debug.WriteLine($"{TAG} ➡️ Pushing ViewController, Animate: {actuallyAnimate}");
+                    
+                    if (actuallyAnimate)
                     {
-                        // Use native UINavigationController animation (includes navigation bar animation)
-                        Debug.WriteLine($"{TAG} 🔵 Using native iOS push animation");
-                        _navigationController.PushViewController(viewController, animate);
-                        _viewControllerStack.Add(viewController);
-                        _pageStack.Add(page);
-
-                        // Update navbar visibility based on the page's attached property
-                        UpdateNavigationBarVisibility(page);
-
-                        newAware?.OnTopmost();
-                        oldAware?.OnCovered();
-
-                        tcs.SetResult(true);
+                        CATransaction.Begin();
+                        CATransaction.CompletionBlock = () =>
+                        {
+                            Debug.WriteLine($"{TAG} ✅ Push animation complete");
+                            tcs.TrySetResult(true);
+                        };
                     }
-                    else if (animate && transition != AnimationType.None)
+
+                    // Push the view controller
+                    // The Delegate will handle the custom transition if actuallyAnimate is true
+                    _navigationController.PushViewController(viewController, actuallyAnimate);
+                    
+                    if (actuallyAnimate)
                     {
-                        // Custom transition - do manual animation
-                        var oldView = _navigationController.TopViewController?.View;
-
-                        if (oldView != null && _navigationController.View != null && pageView != null)
-                        {
-                            var containerBounds = oldView.Frame;
-                            var animationContainer = _navigationController.View;
-
-                            // CRITICAL: Force navbar to stay visible during custom animation
-                            // iOS auto-hides navbar when we manipulate view hierarchy
-                            Debug.WriteLine($"{TAG} 🔵 NavBar hidden before animation: {_navigationController.NavigationBarHidden}");
-                            _navigationController.SetNavigationBarHidden(false, false);
-
-                            // Add both views to the container for animation
-                            oldView.Hidden = false;
-                            animationContainer.AddSubview(oldView);
-                            animationContainer.AddSubview(pageView);
-
-                            // Apply starting state for the transition
-                            Debug.WriteLine($"{TAG} 🎬 Applying push animation start for transition: {transition}");
-                            ApplyPushAnimationStart(pageView, oldView, containerBounds, transition);
-
-                            // Get animation duration and curve
-                            var duration = GetAnimationDuration(page, isPush: true);
-                            var curve = GetAnimationCurve(page, isPush: true);
-
-                            Debug.WriteLine($"{TAG} 🎬 Creating animator for transition: {transition}, duration: {duration}");
-
-                            // Special handling for WhirlIn3 - add rotation animation via CALayer
-                            if (transition == AnimationType.WhirlIn3)
-                            {
-                                var rotationAnimation = CoreAnimation.CABasicAnimation.FromKeyPath("transform.rotation.z");
-                                rotationAnimation.From = Foundation.NSNumber.FromDouble(-Math.PI * 6); // -1080 degrees
-                                rotationAnimation.To = Foundation.NSNumber.FromDouble(0);
-                                rotationAnimation.Duration = duration;
-                                rotationAnimation.TimingFunction = CoreAnimation.CAMediaTimingFunction.FromName(CoreAnimation.CAMediaTimingFunction.EaseInEaseOut);
-                                pageView.Layer.AddAnimation(rotationAnimation, "whirl3Rotation");
-                            }
-
-                            // Create the animation for scale/alpha/position
-                            var animator = new UIViewPropertyAnimator(duration, curve, CreatePushAnimation(pageView, oldView, containerBounds, transition));
-
-                            animator.AddCompletion((position) =>
-                            {
-                                Debug.WriteLine($"{TAG} 🔵 NavBar hidden after animation: {_navigationController.NavigationBarHidden}");
-
-                                // Animation complete - now push the view controller
-                                // This adds it to the navigation stack with the navigation bar
-                                _navigationController.PushViewController(viewController, false);
-                                _viewControllerStack.Add(viewController);
-                                _pageStack.Add(page);
-
-                                // Clean up temporary views
-                                oldView.RemoveFromSuperview();
-                                pageView.RemoveFromSuperview();
-
-                                // Update navbar visibility based on the page's attached property
-                                UpdateNavigationBarVisibility(page);
-
-                                newAware?.OnTopmost();
-                                oldAware?.OnCovered();
-
-                                tcs.SetResult(true);
-                            });
-
-                            animator.StartAnimation();
-                        }
-                        else
-                        {
-                            _navigationController.PushViewController(viewController, false);
-                            _viewControllerStack.Add(viewController);
-                            _pageStack.Add(page);
-
-                            newAware?.OnTopmost();
-                            oldAware?.OnCovered();
-
-                            tcs.SetResult(true);
-                        }
+                        CATransaction.Commit();
                     }
                     else
                     {
-                        // No animation - just push
-                        Debug.WriteLine($"{TAG} 🔵 No animation push - calling PushViewController");
-                        _navigationController.PushViewController(viewController, false);
-                        _viewControllerStack.Add(viewController);
-                        _pageStack.Add(page);
-                        Debug.WriteLine($"{TAG} 🔵 Stack updated - count: {_viewControllerStack.Count}");
-
-                        newAware?.OnTopmost();
-                        oldAware?.OnCovered();
-
                         tcs.SetResult(true);
                     }
+                    
+                    _viewControllerStack.Add(viewController);
+                    _pageStack.Add(page);
+
+                    // Update navbar visibility based on the page's attached property
+                    UpdateNavigationBarVisibility(page);
+
+                    newAware?.OnTopmost();
+                    oldAware?.OnCovered();
                 }
             }
             catch (Exception ex)
@@ -1298,7 +571,6 @@ namespace LightNavigation.Platform
                 tcs.TrySetException(ex);
             }
 
-            Debug.WriteLine($"{TAG} 🔵 ShowPageAsync returning task");
             return tcs.Task;
         }
 
@@ -1322,16 +594,7 @@ namespace LightNavigation.Platform
                     return tcs.Task;
                 }
 
-                Debug.WriteLine($"{TAG} ⬅️ Popping, animate: {animate}");
-
-                var oldView = _navigationController.TopViewController?.View;
-
-                // Get the view that will be revealed (the one we're going back to)
-                var newViewController = _navigationController.ViewControllers.Length > 1
-                    ? _navigationController.ViewControllers[_navigationController.ViewControllers.Length - 2]
-                    : null;
-
-                var newView = newViewController?.View;
+                Debug.WriteLine($"{TAG} ⬅️ Popping, animate: {animate}, transition: {transition}");
 
                 // Get pages for INavigationAware
                 var oldPage = _pageStack.Count > 0 ? _pageStack.Last() : null;
@@ -1340,160 +603,43 @@ namespace LightNavigation.Platform
                 var newAware = newPage as INavigationAware;
                 var oldAware = oldPage as INavigationAware;
 
-                // Check if we should use native iOS animation or custom animation
-                if (transition == AnimationType.Default)
+                bool actuallyAnimate = animate && transition != AnimationType.None;
+
+                if (actuallyAnimate)
                 {
-                    // Use native UINavigationController animation (includes navigation bar animation)
-                    Debug.WriteLine($"{TAG} 🔵 Using native iOS pop animation");
-                    _navigationController.PopViewController(animate);
-
-                    if (_viewControllerStack.Count > 0)
+                    CATransaction.Begin();
+                    CATransaction.CompletionBlock = () =>
                     {
-                        _viewControllerStack.RemoveAt(_viewControllerStack.Count - 1);
-                    }
-
-                    if (_pageStack.Count > 0)
-                    {
-                        _pageStack.RemoveAt(_pageStack.Count - 1);
-                    }
-
-                    oldAware?.OnRemoved();
-                    newAware?.OnTopmost();
-
-                    tcs.SetResult(true);
+                        Debug.WriteLine($"{TAG} ✅ Pop animation complete");
+                        tcs.TrySetResult(true);
+                    };
                 }
-                else if (animate && transition != AnimationType.None)
+
+                // Pop the view controller
+                // The Delegate will handle the custom transition if actuallyAnimate is true
+                _navigationController.PopViewController(actuallyAnimate);
+
+                if (actuallyAnimate)
                 {
-                    if (oldView != null && newView != null && _navigationController.View != null)
-                    {
-                        // Use oldView's frame as the container bounds (it has the correct size!)
-                        var containerBounds = oldView.Frame;
-                        var animationContainer = _navigationController.View;
-
-                        oldView.Hidden = false;
-                        newView.Hidden = false;
-
-                        animationContainer.AddSubview(newView);
-                        animationContainer.AddSubview(oldView);
-
-                        // Get the page being popped to get custom settings
-                        var poppingPage = oldPage;
-
-                        // Apply starting state for the pop transition
-                        if (poppingPage != null)
-                        {
-                            ApplyPopAnimationStart(oldView, newView, containerBounds, transition);
-
-                            // Get animation duration and curve
-                            var duration = GetAnimationDuration(poppingPage, isPush: false);
-                            var curve = GetAnimationCurve(poppingPage, isPush: false);
-
-                            Debug.WriteLine($"{TAG} 🎬 Pop animation starting with {transition}, duration: {duration}s");
-
-                            // Use UIViewPropertyAnimator for modern, interruptible animations
-                            var animator = new UIViewPropertyAnimator(duration, curve, CreatePopAnimation(oldView, newView, containerBounds, transition));
-
-                            animator.AddCompletion((position) =>
-                            {
-                                Debug.WriteLine($"{TAG} ✅ Pop animation complete - position: {position}");
-
-                                // Remove views from animation container
-                                oldView.RemoveFromSuperview();
-                                newView.RemoveFromSuperview();
-
-                                // Now actually pop from navigation controller
-                                _navigationController.PopViewController(false);
-
-                                if (_viewControllerStack.Count > 0)
-                                {
-                                    _viewControllerStack.RemoveAt(_viewControllerStack.Count - 1);
-                                }
-
-                                if (_pageStack.Count > 0)
-                                {
-                                    _pageStack.RemoveAt(_pageStack.Count - 1);
-                                }
-
-                                oldAware?.OnRemoved();
-                                newAware?.OnTopmost();
-
-                                tcs.SetResult(true);
-                            });
-
-                            animator.StartAnimation();
-                        }
-                        else
-                        {
-                            // Fallback if no page info
-                            _navigationController.PopViewController(false);
-
-                            if (_viewControllerStack.Count > 0)
-                            {
-                                _viewControllerStack.RemoveAt(_viewControllerStack.Count - 1);
-                            }
-
-                            if (_pageStack.Count > 0)
-                            {
-                                _pageStack.RemoveAt(_pageStack.Count - 1);
-                            }
-
-                            oldAware?.OnRemoved();
-                            newAware?.OnTopmost();
-
-                            tcs.SetResult(true);
-                        }
-                    }
-                    else
-                    {
-                        Debug.WriteLine($"{TAG} ⚠️ Cannot animate - missing views");
-                        // Fallback to no animation
-                        _navigationController.PopViewController(false);
-
-                        if (_viewControllerStack.Count > 0)
-                        {
-                            _viewControllerStack.RemoveAt(_viewControllerStack.Count - 1);
-                        }
-
-                        if (_pageStack.Count > 0)
-                        {
-                            _pageStack.RemoveAt(_pageStack.Count - 1);
-                        }
-
-                        oldAware?.OnRemoved();
-                        newAware?.OnTopmost();
-
-                        tcs.SetResult(true);
-                    }
+                    CATransaction.Commit();
                 }
                 else
                 {
-                    // No animation - just pop
-                    // Ensure the previous view is visible before popping
-                    if (newView != null)
-                    {
-                        newView.Hidden = false;
-                        newView.Alpha = 1;
-                    }
-
-                    _navigationController.PopViewController(false);
-
-                    if (_viewControllerStack.Count > 0)
-                    {
-                        _viewControllerStack.RemoveAt(_viewControllerStack.Count - 1);
-                    }
-
-                    if (_pageStack.Count > 0)
-                    {
-                        _pageStack.RemoveAt(_pageStack.Count - 1);
-                    }
-
-                    oldAware?.OnRemoved();
-                    newAware?.OnTopmost();
-
                     tcs.SetResult(true);
                 }
 
-                Debug.WriteLine($"{TAG} ✅ Popped - Stack: {_viewControllerStack.Count}");
+                if (_viewControllerStack.Count > 0)
+                {
+                    _viewControllerStack.RemoveAt(_viewControllerStack.Count - 1);
+                }
+
+                if (_pageStack.Count > 0)
+                {
+                    _pageStack.RemoveAt(_pageStack.Count - 1);
+                }
+
+                oldAware?.OnRemoved();
+                newAware?.OnTopmost();
             }
             catch (Exception ex)
             {
@@ -1525,101 +671,38 @@ namespace LightNavigation.Platform
                     return tcs.Task;
                 }
 
-                Debug.WriteLine($"{TAG} 🏠 PopToRoot, animate: {animate}, stack: {_viewControllerStack.Count}");
+                Debug.WriteLine($"{TAG} 🏠 PopToRoot, animate: {animate}");
 
                 // Get references BEFORE popping
-                var oldView = _navigationController.TopViewController?.View;
                 var rootViewController = _viewControllerStack.First();
                 var rootPage = _pageStack.First();
 
                 // Get all pages that will be removed (for INavigationAware)
                 var removedPages = _pageStack.Skip(1).ToList();
 
-                if (animate && transition != AnimationType.None && oldView != null && _navigationController.View != null)
+                bool actuallyAnimate = animate && transition != AnimationType.None;
+
+                if (actuallyAnimate)
                 {
-                    var containerBounds = oldView.Frame;
-                    var animationContainer = _navigationController.View;
-
-                    // Get root view
-                    var rootView = rootViewController.View;
-
-                    if (rootView != null)
+                    CATransaction.Begin();
+                    CATransaction.CompletionBlock = () =>
                     {
-                        Debug.WriteLine($"{TAG} 🎬 Starting PopToRoot animation with {transition}");
-
-                        // Setup views for animation
-                        oldView.Hidden = false;
-                        rootView.Hidden = false;
-
-                        animationContainer.AddSubview(rootView);
-                        animationContainer.AddSubview(oldView);
-
-                        // Get the top page being removed for custom settings
-                        var topPage = _pageStack.LastOrDefault();
-
-                        if (topPage != null)
-                        {
-                            // Apply starting state for the pop transition
-                            ApplyPopAnimationStart(oldView, rootView, containerBounds, transition);
-
-                            // Get animation duration and curve
-                            var duration = GetAnimationDuration(topPage, isPush: false);
-                            var curve = GetAnimationCurve(topPage, isPush: false);
-
-                            var animator = new UIViewPropertyAnimator(duration, curve, CreatePopAnimation(oldView, rootView, containerBounds, transition));
-
-                            animator.AddCompletion((position) =>
-                            {
-                                Debug.WriteLine($"{TAG} ✅ PopToRoot animation complete");
-
-                                // Remove views from animation container
-                                oldView.RemoveFromSuperview();
-                                rootView.RemoveFromSuperview();
-
-                                // Now actually pop to root
-                                _navigationController.PopToRootViewController(false);
-
-                                // Update stacks
-                                _viewControllerStack.Clear();
-                                _viewControllerStack.Add(rootViewController);
-
-                                _pageStack.Clear();
-                                _pageStack.Add(rootPage);
-
-                                // Notify INavigationAware - all removed pages
-                                foreach (var removedPage in removedPages)
-                                {
-                                    if (removedPage is INavigationAware aware)
-                                    {
-                                        aware.OnRemoved();
-                                    }
-                                }
-
-                                // Root page is now topmost
-                                if (rootPage is INavigationAware rootAware)
-                                {
-                                    rootAware.OnTopmost();
-                                }
-
-                                Debug.WriteLine($"{TAG} ✅ PopToRoot complete - Stack: {_viewControllerStack.Count}");
-                                tcs.SetResult(true);
-                            });
-
-                            animator.StartAnimation();
-                            return tcs.Task;
-                        }
-                    }
+                        Debug.WriteLine($"{TAG} ✅ PopToRoot animation complete");
+                        tcs.TrySetResult(true);
+                    };
                 }
 
-                // No animation or animation not possible - just pop immediately
-                // Ensure root view is visible
-                if (rootViewController.View != null)
+                // Pop to root
+                _navigationController.PopToRootViewController(actuallyAnimate);
+
+                if (actuallyAnimate)
                 {
-                    rootViewController.View.Hidden = false;
-                    rootViewController.View.Alpha = 1;
+                    CATransaction.Commit();
                 }
-
-                _navigationController.PopToRootViewController(false);
+                else
+                {
+                    tcs.SetResult(true);
+                }
 
                 // Update stacks
                 _viewControllerStack.Clear();
@@ -1642,9 +725,6 @@ namespace LightNavigation.Platform
                 {
                     rootAware.OnTopmost();
                 }
-
-                Debug.WriteLine($"{TAG} ✅ PopToRoot complete - Stack: {_viewControllerStack.Count}");
-                tcs.SetResult(true);
             }
             catch (Exception ex)
             {

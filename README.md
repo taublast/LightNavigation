@@ -1,6 +1,7 @@
 # LightNavigation for .NET MAUI
 
-A subclassed `NavigationPage` bringing custom animated transitions and page lifecycle events. To use for implementing custom navigation scenarios. 
+A subclassed `NavigationPage` bringing custom animated transitions and page lifecycle events. To use for implementing custom navigation scenarios.
+Android, iOS, MacCatalist, Windows, .NET9.
 
 ## 🚀 Features
 
@@ -13,8 +14,14 @@ A subclassed `NavigationPage` bringing custom animated transitions and page life
 
 Solves:
 
-* https://github.com/dotnet/maui/issues/11809
-* https://github.com/dotnet/maui/issues/16621
+* Transition issues in standard `NavigationPage` such as:
+	* https://github.com/dotnet/maui/issues/11809
+	* https://github.com/dotnet/maui/issues/16621
+* Lack of different transition animations options. 
+* Lifecycle awareness for pages, so they now "know" if they are covered/removed/went on top etc to properly manage data and resources.
+
+## 🎈 What's New in v1.2.0
+* Apply safe insets to MAUI page before starting navigation transition, eliminating a "UI jump" artifact after animation finished in non-fullscreen conditions.
 
 ## 📦 Installation
 
