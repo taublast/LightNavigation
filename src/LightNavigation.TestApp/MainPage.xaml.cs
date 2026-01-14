@@ -172,6 +172,13 @@ public partial class MainPage : ContentPage
         UpdateStackInfo();
     }
 
+    private async void OnPushModalClicked(object sender, EventArgs e)
+    {
+        Log("→ Pushing Modal Page (Standard MAUI)");
+        await Navigation.PushModalAsync(new TestModalPage());
+        UpdateStackInfo();
+    }
+
     private async void OnPushThreePagesClicked(object sender, EventArgs e)
     {
         Log($"→ Pushing 3 pages in sequence with {_currentTransition}...");

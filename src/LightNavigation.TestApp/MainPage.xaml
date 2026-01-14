@@ -158,6 +158,16 @@
                             CornerRadius="8"
                             HeightRequest="50" />
 
+                    <BoxView HeightRequest="1" Color="#E0E0E0" Margin="10,0" />
+
+                    <Button Text="Push Modal (Standard MAUI)"
+                            Clicked="OnPushModalClicked"
+                            BackgroundColor="#B00020"
+                            TextColor="White"
+                            Margin="10"
+                            CornerRadius="8"
+                            HeightRequest="50" />
+
                 </VerticalStackLayout>
             </Border>
 
