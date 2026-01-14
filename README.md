@@ -20,9 +20,9 @@ Solves:
 * Lack of different transition animations options. 
 * Lifecycle awareness for pages, so they now "know" if they are covered/removed/went on top etc to properly manage data and resources.
 
-## 🎈 What's New in v1.2.0
-* iOS: reworked transitions to work smoothly with native viewcontrollers/navbars
-* Android: applying safe insets to MAUI page before starting navigation transition for a smooth ending 
+## 🎈 What's New in v1.3.0
+* Nuget targets both net9 and net10
+* Sample app targets net10
 
 ## 📦 Installation
 
