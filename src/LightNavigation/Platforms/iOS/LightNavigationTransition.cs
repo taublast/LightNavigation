@@ -108,7 +108,14 @@ namespace LightNavigation.Platform
             animator.AddCompletion((position) =>
             {
                 var success = !transitionContext.TransitionWasCancelled;
-                
+
+                // Remove WhirlIn3 rotation animation to prevent memory leaks
+                if (_transitionType == AnimationType.WhirlIn3)
+                {
+                    var targetView = _operation == UINavigationControllerOperation.Push ? toView : fromView;
+                    targetView.Layer.RemoveAnimation("whirl3Rotation");
+                }
+
                 // Cleanup
                 if (success)
                 {

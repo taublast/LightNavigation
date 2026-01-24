@@ -1231,6 +1231,12 @@ namespace LightNavigation.Platform
                             {
                                 Debug.WriteLine($"{TAG} 🔵 NavBar hidden after animation: {_navigationController.NavigationBarHidden}");
 
+                                // Remove WhirlIn3 rotation animation to prevent memory leaks
+                                if (transition == AnimationType.WhirlIn3)
+                                {
+                                    pageView.Layer.RemoveAnimation("whirl3Rotation");
+                                }
+
                                 // Animation complete - now push the view controller
                                 // This adds it to the navigation stack with the navigation bar
                                 _navigationController.PushViewController(viewController, false);

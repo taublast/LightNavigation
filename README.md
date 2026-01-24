@@ -20,9 +20,8 @@ Solves:
 * Lack of different transition animations options. 
 * Lifecycle awareness for pages, so they now "know" if they are covered/removed/went on top etc to properly manage data and resources.
 
-## 🎈 What's New in v1.3.0
-* Nuget targets both net9 and net10
-* Sample app targets net10
+## 🎈 What's New in v1.4.0
+* Fixed iOS memory leak
 
 ## 📦 Installation
 

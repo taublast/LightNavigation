@@ -290,11 +290,25 @@ namespace LightNavigation.Platform
                 VirtualView.PropertyChanged -= OnNavigationPagePropertyChanged;
             }
 
-            // Clean up
+            // Clean up - clear MauiPage references to prevent memory leaks
+            foreach (var vc in _viewControllerStack)
+            {
+                if (vc is LightPageViewController lightPageVC)
+                {
+                    lightPageVC.MauiPage = null;
+                }
+            }
+
             _navigationQueue.Clear();
             _viewControllerStack.Clear();
             _pageStack.Clear();
-            _navigationController?.View.RemoveFromSuperview();
+
+            // Clear delegate to break potential retain cycles
+            if (_navigationController != null)
+            {
+                _navigationController.Delegate = null;
+                _navigationController.View.RemoveFromSuperview();
+            }
             _navigationController = null;
             _navigationSemaphore?.Dispose();
 
@@ -630,7 +644,14 @@ namespace LightNavigation.Platform
 
                 if (_viewControllerStack.Count > 0)
                 {
+                    var poppedViewController = _viewControllerStack[_viewControllerStack.Count - 1];
                     _viewControllerStack.RemoveAt(_viewControllerStack.Count - 1);
+
+                    // Clear MauiPage reference to prevent memory leak
+                    if (poppedViewController is LightPageViewController lightPageVC)
+                    {
+                        lightPageVC.MauiPage = null;
+                    }
                 }
 
                 if (_pageStack.Count > 0)
@@ -680,6 +701,9 @@ namespace LightNavigation.Platform
                 // Get all pages that will be removed (for INavigationAware)
                 var removedPages = _pageStack.Skip(1).ToList();
 
+                // Get all view controllers that will be removed (to clear MauiPage references)
+                var removedViewControllers = _viewControllerStack.Skip(1).ToList();
+
                 bool actuallyAnimate = animate && transition != AnimationType.None;
 
                 if (actuallyAnimate)
@@ -710,6 +734,15 @@ namespace LightNavigation.Platform
 
                 _pageStack.Clear();
                 _pageStack.Add(rootPage);
+
+                // Clear MauiPage references to prevent memory leaks
+                foreach (var vc in removedViewControllers)
+                {
+                    if (vc is LightPageViewController lightPageVC)
+                    {
+                        lightPageVC.MauiPage = null;
+                    }
+                }
 
                 // Notify INavigationAware - all removed pages
                 foreach (var removedPage in removedPages)
