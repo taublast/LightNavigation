@@ -32,7 +32,7 @@ namespace LightNavigation.Platform
                 if (_navigationController != value)
                 {
                     // Remove old navigation controller's view
-                    _navigationController?.View.RemoveFromSuperview();
+                    _navigationController?.View?.RemoveFromSuperview();
 
                     _navigationController = value;
 
@@ -312,7 +312,7 @@ namespace LightNavigation.Platform
             if (_navigationController != null)
             {
                 _navigationController.Delegate = null;
-                _navigationController.View.RemoveFromSuperview();
+                _navigationController.View?.RemoveFromSuperview();
             }
             _navigationController = null;
             _navigationSemaphore?.Dispose();

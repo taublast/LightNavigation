@@ -31,7 +31,7 @@ namespace LightNavigation.Platform
                 if (_navigationController != value)
                 {
                     // Remove old navigation controller's view
-                    _navigationController?.View.RemoveFromSuperview();
+                    _navigationController?.View?.RemoveFromSuperview();
 
                     _navigationController = value;
 
@@ -266,7 +266,7 @@ namespace LightNavigation.Platform
             _navigationQueue.Clear();
             _viewControllerStack.Clear();
             _pageStack.Clear();
-            _navigationController?.View.RemoveFromSuperview();
+            _navigationController?.View?.RemoveFromSuperview();
             _navigationController = null;
             _navigationSemaphore?.Dispose();
 
@@ -1156,8 +1156,8 @@ namespace LightNavigation.Platform
                 if (isInitial)
                 {
                     // Set as root - no animation
-                    _navigationController.SetViewControllers(new[] { viewController }, false);
-                    _viewControllerStack.Add(viewController);
+                    _navigationController.SetViewControllers(new[] { viewController }!, false);
+                    _viewControllerStack.Add(viewController!);
                     _pageStack.Add(page);
                     oldAware?.OnCovered();
                     newAware?.OnTopmost();
@@ -1171,8 +1171,8 @@ namespace LightNavigation.Platform
                     {
                         // Use native UINavigationController animation (includes navigation bar animation)
                         Debug.WriteLine($"{TAG} 🔵 Using native iOS push animation");
-                        _navigationController.PushViewController(viewController, animate);
-                        _viewControllerStack.Add(viewController);
+                        _navigationController.PushViewController(viewController!, animate);
+                        _viewControllerStack.Add(viewController!);
                         _pageStack.Add(page);
 
                         // Update navbar visibility based on the page's attached property
@@ -1239,8 +1239,8 @@ namespace LightNavigation.Platform
 
                                 // Animation complete - now push the view controller
                                 // This adds it to the navigation stack with the navigation bar
-                                _navigationController.PushViewController(viewController, false);
-                                _viewControllerStack.Add(viewController);
+                                _navigationController.PushViewController(viewController!, false);
+                                _viewControllerStack.Add(viewController!);
                                 _pageStack.Add(page);
 
                                 // Clean up temporary views
@@ -1260,8 +1260,8 @@ namespace LightNavigation.Platform
                         }
                         else
                         {
-                            _navigationController.PushViewController(viewController, false);
-                            _viewControllerStack.Add(viewController);
+                            _navigationController.PushViewController(viewController!, false);
+                            _viewControllerStack.Add(viewController!);
                             _pageStack.Add(page);
 
                             newAware?.OnTopmost();
@@ -1274,8 +1274,8 @@ namespace LightNavigation.Platform
                     {
                         // No animation - just push
                         Debug.WriteLine($"{TAG} 🔵 No animation push - calling PushViewController");
-                        _navigationController.PushViewController(viewController, false);
-                        _viewControllerStack.Add(viewController);
+                        _navigationController.PushViewController(viewController!, false);
+                        _viewControllerStack.Add(viewController!);
                         _pageStack.Add(page);
                         Debug.WriteLine($"{TAG} 🔵 Stack updated - count: {_viewControllerStack.Count}");
 
@@ -1322,7 +1322,7 @@ namespace LightNavigation.Platform
                 var oldView = _navigationController.TopViewController?.View;
 
                 // Get the view that will be revealed (the one we're going back to)
-                var newViewController = _navigationController.ViewControllers.Length > 1
+                var newViewController = _navigationController.ViewControllers != null && _navigationController.ViewControllers.Length > 1
                     ? _navigationController.ViewControllers[_navigationController.ViewControllers.Length - 2]
                     : null;
 
