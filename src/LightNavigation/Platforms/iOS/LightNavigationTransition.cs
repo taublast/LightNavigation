@@ -43,130 +43,137 @@ namespace LightNavigation.Platform
                 return;
             }
 
-            // Ensure the toView has the correct frame and is added to the container
-            var finalFrame = transitionContext.GetFinalFrameForViewController(toViewController);
-            toView.Frame = finalFrame;
-            
-            // For Push, we add toView on top. For Pop, we insert toView below fromView (usually).
-            // However, standard practice is to add toView to container.
-            // For Push: container has fromView. Add toView.
-            // For Pop: container has fromView. Insert toView below fromView? 
-            // Actually, for custom transitions, we manage the subviews.
-            
-            if (_operation == UINavigationControllerOperation.Push)
+            if (toViewController is LightPageViewController lightViewController)
             {
-                containerView.AddSubview(toView);
-                PreparePushAnimation(toView, fromView, containerView.Bounds);
-            }
-            else if (_operation == UINavigationControllerOperation.Pop)
-            {
-                containerView.InsertSubviewBelow(toView, fromView);
-                PreparePopAnimation(fromView, toView, containerView.Bounds);
-            }
 
-            // Force layout to ensure safe areas are respected before animation starts
-            toView.SetNeedsLayout();
-            toView.LayoutIfNeeded();
-            fromView.SetNeedsLayout();
-            fromView.LayoutIfNeeded();
+                // Ensure the toView has the correct frame and is added to the container
+                var finalFrame = transitionContext.GetFinalFrameForViewController(toViewController);
+                toView.Frame = finalFrame;
 
-            // Animate navbar visibility alongside the custom transition
-            var navController = toViewController.NavigationController;
-            if (navController != null)
-            {
-                Page? targetPage = null;
-                if (toViewController is LightPageViewController lightToVC)
-                    targetPage = lightToVC.MauiPage;
+                // For Push, we add toView on top. For Pop, we insert toView below fromView (usually).
+                // However, standard practice is to add toView to container.
+                // For Push: container has fromView. Add toView.
+                // For Pop: container has fromView. Insert toView below fromView? 
+                // Actually, for custom transitions, we manage the subviews.
 
-                if (targetPage != null)
-                {
-                    var hasNavBar = NavigationPage.GetHasNavigationBar(targetPage);
-                    navController.SetNavigationBarHidden(!hasNavBar, true);
-                }
-            }
-
-            var curve = GetAnimationCurve(_easing, _operation == UINavigationControllerOperation.Push);
-            
-            // Special handling for WhirlIn3 rotation
-            if (_transitionType == AnimationType.WhirlIn3)
-            {
-                var targetView = _operation == UINavigationControllerOperation.Push ? toView : fromView;
-                var rotationAnimation = CABasicAnimation.FromKeyPath("transform.rotation.z");
-                
                 if (_operation == UINavigationControllerOperation.Push)
                 {
-                    rotationAnimation.From = NSNumber.FromDouble(-Math.PI * 6); // -1080 degrees
-                    rotationAnimation.To = NSNumber.FromDouble(0);
+                    containerView.AddSubview(toView);
+                    PreparePushAnimation(toView, fromView, containerView.Bounds);
                 }
-                else
+                else if (_operation == UINavigationControllerOperation.Pop)
                 {
-                    rotationAnimation.From = NSNumber.FromDouble(0);
-                    rotationAnimation.To = NSNumber.FromDouble(Math.PI * 6); // 1080 degrees
+                    containerView.InsertSubviewBelow(toView, fromView);
+                    PreparePopAnimation(fromView, toView, containerView.Bounds);
                 }
-                
-                rotationAnimation.Duration = _duration;
-                rotationAnimation.TimingFunction = CAMediaTimingFunction.FromName(CAMediaTimingFunction.EaseInEaseOut);
-                targetView.Layer.AddAnimation(rotationAnimation, "whirl3Rotation");
-            }
 
-            var animator = new UIViewPropertyAnimator(_duration, curve, () =>
-            {
-                if (_operation == UINavigationControllerOperation.Push)
+                // Force layout to ensure safe areas are respected before animation starts
+                toView.SetNeedsLayout();
+                toView.LayoutIfNeeded();
+
+                fromView.SetNeedsLayout();
+                fromView.LayoutIfNeeded();
+
+                // Animate navbar visibility alongside the custom transition
+                var navController = toViewController.NavigationController;
+
+                if (navController != null)
                 {
-                    PerformPushAnimation(toView, fromView, containerView.Bounds);
-                }
-                else
-                {
-                    PerformPopAnimation(fromView, toView, containerView.Bounds);
-                }
-            });
+                    Page? targetPage = null;
 
-            animator.AddCompletion((position) =>
-            {
-                var success = !transitionContext.TransitionWasCancelled;
+                    targetPage = lightViewController.MauiPage;
 
-                // Remove WhirlIn3 rotation animation to prevent memory leaks
+                    if (targetPage != null)
+                    {
+                        var hasNavBar = NavigationPage.GetHasNavigationBar(targetPage);
+                        navController.SetNavigationBarHidden(!hasNavBar, true);
+                    }
+                }
+
+                var curve = GetAnimationCurve(_easing, _operation == UINavigationControllerOperation.Push);
+
+                // Special handling for WhirlIn3 rotation
                 if (_transitionType == AnimationType.WhirlIn3)
                 {
                     var targetView = _operation == UINavigationControllerOperation.Push ? toView : fromView;
-                    targetView.Layer.RemoveAnimation("whirl3Rotation");
-                }
+                    var rotationAnimation = CABasicAnimation.FromKeyPath("transform.rotation.z");
 
-                // Cleanup
-                if (success)
-                {
                     if (_operation == UINavigationControllerOperation.Push)
                     {
-                        fromView.Transform = CGAffineTransform.MakeIdentity();
-                        fromView.Alpha = 1;
+                        rotationAnimation.From = NSNumber.FromDouble(-Math.PI * 6); // -1080 degrees
+                        rotationAnimation.To = NSNumber.FromDouble(0);
                     }
                     else
                     {
-                        fromView.RemoveFromSuperview();
-                        toView.Transform = CGAffineTransform.MakeIdentity();
-                        toView.Alpha = 1;
+                        rotationAnimation.From = NSNumber.FromDouble(0);
+                        rotationAnimation.To = NSNumber.FromDouble(Math.PI * 6); // 1080 degrees
                     }
+
+                    rotationAnimation.Duration = _duration;
+                    rotationAnimation.TimingFunction = CAMediaTimingFunction.FromName(CAMediaTimingFunction.EaseInEaseOut);
+                    targetView.Layer.AddAnimation(rotationAnimation, "whirl3Rotation");
                 }
-                else
+
+                var animator = new UIViewPropertyAnimator(_duration, curve, () =>
                 {
-                    toView.RemoveFromSuperview();
-                }
+                    if (_operation == UINavigationControllerOperation.Push)
+                    {
+                        PerformPushAnimation(toView, fromView, containerView.Bounds);
+                    }
+                    else
+                    {
+                        PerformPopAnimation(fromView, toView, containerView.Bounds);
+                    }
+                });
 
-                transitionContext.CompleteTransition(success);
-            });
+                animator.AddCompletion((position) =>
+                {
+                    var success = !transitionContext.TransitionWasCancelled;
 
-            animator.StartAnimation();
+                    // Remove WhirlIn3 rotation animation to prevent memory leaks
+                    if (_transitionType == AnimationType.WhirlIn3)
+                    {
+                        var targetView = _operation == UINavigationControllerOperation.Push ? toView : fromView;
+                        targetView.Layer.RemoveAnimation("whirl3Rotation");
+                    }
+
+                    // Cleanup
+                    if (success)
+                    {
+                        if (_operation == UINavigationControllerOperation.Push)
+                        {
+                            fromView.Transform = CGAffineTransform.MakeIdentity();
+                            fromView.Alpha = 1;
+                        }
+                        else
+                        {
+                            fromView.RemoveFromSuperview();
+                            toView.Transform = CGAffineTransform.MakeIdentity();
+                            toView.Alpha = 1;
+                        }
+                    }
+                    else
+                    {
+                        toView.RemoveFromSuperview();
+                    }
+
+                    transitionContext.CompleteTransition(success);
+                });
+
+                animator.StartAnimation();
+            }
+
         }
 
         private UIViewAnimationCurve GetAnimationCurve(TransitionEasing easing, bool isPush)
         {
             switch (easing)
             {
-                case TransitionEasing.Linear: return UIViewAnimationCurve.Linear;
-                case TransitionEasing.Decelerate: return UIViewAnimationCurve.EaseOut;
-                case TransitionEasing.Accelerate: return UIViewAnimationCurve.EaseIn;
-                case TransitionEasing.AccelerateDecelerate: return UIViewAnimationCurve.EaseInOut;
-                default: return isPush ? UIViewAnimationCurve.EaseOut : UIViewAnimationCurve.EaseIn;
+            case TransitionEasing.Linear: return UIViewAnimationCurve.Linear;
+            case TransitionEasing.Decelerate: return UIViewAnimationCurve.EaseOut;
+            case TransitionEasing.Accelerate: return UIViewAnimationCurve.EaseIn;
+            case TransitionEasing.AccelerateDecelerate: return UIViewAnimationCurve.EaseInOut;
+            default: return isPush ? UIViewAnimationCurve.EaseOut : UIViewAnimationCurve.EaseIn;
             }
         }
 
@@ -174,44 +181,44 @@ namespace LightNavigation.Platform
         {
             switch (_transitionType)
             {
-                case AnimationType.SlideFromRight:
-                case AnimationType.Default:
-                    newView.Transform = CGAffineTransform.MakeTranslation(bounds.Width, 0);
-                    break;
-                case AnimationType.SlideFromLeft:
-                    newView.Transform = CGAffineTransform.MakeTranslation(-bounds.Width, 0);
-                    break;
-                case AnimationType.SlideFromBottom:
-                    newView.Transform = CGAffineTransform.MakeTranslation(0, bounds.Height);
-                    break;
-                case AnimationType.SlideFromTop:
-                    newView.Transform = CGAffineTransform.MakeTranslation(0, -bounds.Height);
-                    break;
-                case AnimationType.ParallaxSlideFromRight:
-                    newView.Transform = CGAffineTransform.MakeTranslation(bounds.Width, 0);
-                    break;
-                case AnimationType.ParallaxSlideFromLeft:
-                    newView.Transform = CGAffineTransform.MakeTranslation(-bounds.Width, 0);
-                    break;
-                case AnimationType.Fade:
-                    newView.Alpha = 0;
-                    break;
-                case AnimationType.ZoomIn:
-                    newView.Alpha = 0;
-                    newView.Transform = CGAffineTransform.MakeScale(0.3f, 0.3f);
-                    break;
-                case AnimationType.ZoomOut:
-                    newView.Alpha = 0;
-                    newView.Transform = CGAffineTransform.MakeScale(1.5f, 1.5f);
-                    break;
-                case AnimationType.WhirlIn:
-                    newView.Alpha = 0;
-                    newView.Transform = CGAffineTransform.Rotate(CGAffineTransform.MakeScale(0.3f, 0.3f), (nfloat)(-Math.PI));
-                    break;
-                case AnimationType.WhirlIn3:
-                    newView.Alpha = 0;
-                    newView.Transform = CGAffineTransform.MakeScale(0.3f, 0.3f);
-                    break;
+            case AnimationType.SlideFromRight:
+            case AnimationType.Default:
+            newView.Transform = CGAffineTransform.MakeTranslation(bounds.Width, 0);
+            break;
+            case AnimationType.SlideFromLeft:
+            newView.Transform = CGAffineTransform.MakeTranslation(-bounds.Width, 0);
+            break;
+            case AnimationType.SlideFromBottom:
+            newView.Transform = CGAffineTransform.MakeTranslation(0, bounds.Height);
+            break;
+            case AnimationType.SlideFromTop:
+            newView.Transform = CGAffineTransform.MakeTranslation(0, -bounds.Height);
+            break;
+            case AnimationType.ParallaxSlideFromRight:
+            newView.Transform = CGAffineTransform.MakeTranslation(bounds.Width, 0);
+            break;
+            case AnimationType.ParallaxSlideFromLeft:
+            newView.Transform = CGAffineTransform.MakeTranslation(-bounds.Width, 0);
+            break;
+            case AnimationType.Fade:
+            newView.Alpha = 0;
+            break;
+            case AnimationType.ZoomIn:
+            newView.Alpha = 0;
+            newView.Transform = CGAffineTransform.MakeScale(0.3f, 0.3f);
+            break;
+            case AnimationType.ZoomOut:
+            newView.Alpha = 0;
+            newView.Transform = CGAffineTransform.MakeScale(1.5f, 1.5f);
+            break;
+            case AnimationType.WhirlIn:
+            newView.Alpha = 0;
+            newView.Transform = CGAffineTransform.Rotate(CGAffineTransform.MakeScale(0.3f, 0.3f), (nfloat)(-Math.PI));
+            break;
+            case AnimationType.WhirlIn3:
+            newView.Alpha = 0;
+            newView.Transform = CGAffineTransform.MakeScale(0.3f, 0.3f);
+            break;
             }
         }
 
@@ -222,15 +229,15 @@ namespace LightNavigation.Platform
 
             switch (_transitionType)
             {
-                case AnimationType.ParallaxSlideFromRight:
-                    oldView.Transform = CGAffineTransform.MakeTranslation(-bounds.Width * 0.3f, 0);
-                    break;
-                case AnimationType.ParallaxSlideFromLeft:
-                    oldView.Transform = CGAffineTransform.MakeTranslation(bounds.Width * 0.3f, 0);
-                    break;
-                case AnimationType.Fade:
-                    oldView.Alpha = 0;
-                    break;
+            case AnimationType.ParallaxSlideFromRight:
+            oldView.Transform = CGAffineTransform.MakeTranslation(-bounds.Width * 0.3f, 0);
+            break;
+            case AnimationType.ParallaxSlideFromLeft:
+            oldView.Transform = CGAffineTransform.MakeTranslation(bounds.Width * 0.3f, 0);
+            break;
+            case AnimationType.Fade:
+            oldView.Alpha = 0;
+            break;
             }
         }
 
@@ -242,15 +249,15 @@ namespace LightNavigation.Platform
 
             switch (_transitionType)
             {
-                case AnimationType.ParallaxSlideFromRight:
-                    newView.Transform = CGAffineTransform.MakeTranslation(-bounds.Width * 0.3f, 0);
-                    break;
-                case AnimationType.ParallaxSlideFromLeft:
-                    newView.Transform = CGAffineTransform.MakeTranslation(bounds.Width * 0.3f, 0);
-                    break;
-                case AnimationType.Fade:
-                    newView.Alpha = 0;
-                    break;
+            case AnimationType.ParallaxSlideFromRight:
+            newView.Transform = CGAffineTransform.MakeTranslation(-bounds.Width * 0.3f, 0);
+            break;
+            case AnimationType.ParallaxSlideFromLeft:
+            newView.Transform = CGAffineTransform.MakeTranslation(bounds.Width * 0.3f, 0);
+            break;
+            case AnimationType.Fade:
+            newView.Alpha = 0;
+            break;
             }
         }
 
@@ -261,44 +268,44 @@ namespace LightNavigation.Platform
 
             switch (_transitionType)
             {
-                case AnimationType.SlideFromRight:
-                case AnimationType.Default:
-                    oldView.Transform = CGAffineTransform.MakeTranslation(bounds.Width, 0);
-                    break;
-                case AnimationType.SlideFromLeft:
-                    oldView.Transform = CGAffineTransform.MakeTranslation(-bounds.Width, 0);
-                    break;
-                case AnimationType.SlideFromBottom:
-                    oldView.Transform = CGAffineTransform.MakeTranslation(0, bounds.Height);
-                    break;
-                case AnimationType.SlideFromTop:
-                    oldView.Transform = CGAffineTransform.MakeTranslation(0, -bounds.Height);
-                    break;
-                case AnimationType.ParallaxSlideFromRight:
-                    oldView.Transform = CGAffineTransform.MakeTranslation(bounds.Width, 0);
-                    break;
-                case AnimationType.ParallaxSlideFromLeft:
-                    oldView.Transform = CGAffineTransform.MakeTranslation(-bounds.Width, 0);
-                    break;
-                case AnimationType.Fade:
-                    oldView.Alpha = 0;
-                    break;
-                case AnimationType.ZoomIn:
-                    oldView.Alpha = 0;
-                    oldView.Transform = CGAffineTransform.MakeScale(0.3f, 0.3f);
-                    break;
-                case AnimationType.ZoomOut:
-                    oldView.Alpha = 0;
-                    oldView.Transform = CGAffineTransform.MakeScale(1.5f, 1.5f);
-                    break;
-                case AnimationType.WhirlIn:
-                    oldView.Alpha = 0;
-                    oldView.Transform = CGAffineTransform.Rotate(CGAffineTransform.MakeScale(0.3f, 0.3f), (nfloat)(-Math.PI));
-                    break;
-                case AnimationType.WhirlIn3:
-                    oldView.Alpha = 0;
-                    oldView.Transform = CGAffineTransform.MakeScale(0.3f, 0.3f);
-                    break;
+            case AnimationType.SlideFromRight:
+            case AnimationType.Default:
+            oldView.Transform = CGAffineTransform.MakeTranslation(bounds.Width, 0);
+            break;
+            case AnimationType.SlideFromLeft:
+            oldView.Transform = CGAffineTransform.MakeTranslation(-bounds.Width, 0);
+            break;
+            case AnimationType.SlideFromBottom:
+            oldView.Transform = CGAffineTransform.MakeTranslation(0, bounds.Height);
+            break;
+            case AnimationType.SlideFromTop:
+            oldView.Transform = CGAffineTransform.MakeTranslation(0, -bounds.Height);
+            break;
+            case AnimationType.ParallaxSlideFromRight:
+            oldView.Transform = CGAffineTransform.MakeTranslation(bounds.Width, 0);
+            break;
+            case AnimationType.ParallaxSlideFromLeft:
+            oldView.Transform = CGAffineTransform.MakeTranslation(-bounds.Width, 0);
+            break;
+            case AnimationType.Fade:
+            oldView.Alpha = 0;
+            break;
+            case AnimationType.ZoomIn:
+            oldView.Alpha = 0;
+            oldView.Transform = CGAffineTransform.MakeScale(0.3f, 0.3f);
+            break;
+            case AnimationType.ZoomOut:
+            oldView.Alpha = 0;
+            oldView.Transform = CGAffineTransform.MakeScale(1.5f, 1.5f);
+            break;
+            case AnimationType.WhirlIn:
+            oldView.Alpha = 0;
+            oldView.Transform = CGAffineTransform.Rotate(CGAffineTransform.MakeScale(0.3f, 0.3f), (nfloat)(-Math.PI));
+            break;
+            case AnimationType.WhirlIn3:
+            oldView.Alpha = 0;
+            oldView.Transform = CGAffineTransform.MakeScale(0.3f, 0.3f);
+            break;
             }
         }
     }

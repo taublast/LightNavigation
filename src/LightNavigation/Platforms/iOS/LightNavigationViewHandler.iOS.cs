@@ -4,67 +4,20 @@ using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Internals;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Platform;
+using Microsoft.Maui.Controls.PlatformConfiguration;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using UIKit;
 using CoreGraphics;
+using Microsoft.Maui.Controls.PlatformConfiguration.iOSSpecific;
 using Debug = System.Diagnostics.Debug;
 using MauiNavigationPage = Microsoft.Maui.Controls.NavigationPage;
 using MauiPage = Microsoft.Maui.Controls.Page;
 
 namespace LightNavigation.Platform
 {
-    /// <summary>
-    /// Custom UIView that wraps a UINavigationController.
-    /// This allows MAUI to get the ViewController when needed.
-    /// </summary>
-    public class NavigationView : UIView
-    {
-        private UINavigationController? _navigationController;
-
-        public UINavigationController? NavigationController
-        {
-            get => _navigationController;
-            set
-            {
-                if (_navigationController != value)
-                {
-                    // Remove old navigation controller's view
-                    _navigationController?.View?.RemoveFromSuperview();
-
-                    _navigationController = value;
-
-                    // Add new navigation controller's view
-                    if (_navigationController?.View != null)
-                    {
-                        AddSubview(_navigationController.View);
-                        _navigationController.View.Frame = Bounds;
-                        _navigationController.View.AutoresizingMask = UIViewAutoresizing.FlexibleWidth | UIViewAutoresizing.FlexibleHeight;
-                    }
-                }
-            }
-        }
-
-        public NavigationView()
-        {
-            AutoresizingMask = UIViewAutoresizing.FlexibleWidth | UIViewAutoresizing.FlexibleHeight;
-            BackgroundColor = UIColor.Clear;
-        }
-
-        public override void LayoutSubviews()
-        {
-            base.LayoutSubviews();
-
-            // Ensure navigation controller's view fills this view
-            if (_navigationController?.View != null)
-            {
-                _navigationController.View.Frame = Bounds;
-            }
-        }
-    }
-
     /// <summary>
     /// Custom NavigationPage handler for iOS that eliminates flashing during navigation.
     ///
@@ -94,6 +47,18 @@ namespace LightNavigation.Platform
         private readonly SemaphoreSlim _navigationSemaphore = new(1, 1);
         private bool _isProcessingQueue = false;
 
+        public static IPropertyMapper<LightNavigationPage, LightNavigationViewHandler> PropertyMapper =
+            new PropertyMapper<LightNavigationPage, LightNavigationViewHandler>(ViewHandler.ViewMapper)
+            {
+                [Microsoft.Maui.Controls.NavigationPage.HasNavigationBarProperty.PropertyName] = MapHasNavigationBar
+            };
+
+        public static CommandMapper<LightNavigationPage, LightNavigationViewHandler> CommandMapper =
+            new CommandMapper<LightNavigationPage, LightNavigationViewHandler>(ViewHandler.ViewCommandMapper)
+            {
+                [nameof(IStackNavigation.RequestNavigation)] = MapRequestNavigation
+            };
+
         // CRITICAL: IPlatformViewHandler requires this property!
         // MAUI casts this to UINavigationController in MapPrefersLargeTitles/MapIsNavigationBarTranslucent
         public new UIViewController? ViewController => _navigationController;
@@ -103,6 +68,15 @@ namespace LightNavigation.Platform
             var hashCode = GetHashCode();
             Debug.WriteLine($"{TAG} ✅ Handler created - HashCode: {hashCode}");
             Debug.WriteLine($"{TAG} 📋 CommandMapper registered");
+        }
+
+        void UpdateSetNavigationBarForPage(MauiPage page, bool animated)
+        {
+            if (_navigationController != null && page != null)
+            {
+                var hasNavBar = MauiNavigationPage.GetHasNavigationBar(page);
+                _navigationController.SetNavigationBarHidden(!hasNavBar, animated);
+            }
         }
 
         /// <summary>
@@ -147,59 +121,38 @@ namespace LightNavigation.Platform
                 Debug.WriteLine($"{TAG} ✅ Queue processing complete");
             }
         }
-
-        public static IPropertyMapper<LightNavigationPage, LightNavigationViewHandler> PropertyMapper =
-            new PropertyMapper<LightNavigationPage, LightNavigationViewHandler>(ViewHandler.ViewMapper)
-            {
-                [Microsoft.Maui.Controls.NavigationPage.HasNavigationBarProperty.PropertyName] = MapHasNavigationBar
-            };
-
-        public static CommandMapper<LightNavigationPage, LightNavigationViewHandler> CommandMapper =
-            new CommandMapper<LightNavigationPage, LightNavigationViewHandler>(ViewHandler.ViewCommandMapper)
-            {
-                [nameof(IStackNavigation.RequestNavigation)] = MapRequestNavigation
-            };
-
+        
         private static void MapHasNavigationBar(LightNavigationViewHandler handler, LightNavigationPage view)
         {
-            if (handler._navigationController != null)
+            if (view != null)
             {
-                var hasNavBar = Microsoft.Maui.Controls.NavigationPage.GetHasNavigationBar(view);
-                handler._navigationController.NavigationBarHidden = !hasNavBar;
-                Debug.WriteLine($"{TAG} 🔵 NavigationBar visibility changed: {hasNavBar}");
+                bool hasNavBar = Microsoft.Maui.Controls.NavigationPage.GetHasNavigationBar(view);
+                if (handler._navigationController != null)
+                {
+                    if (view.CurrentPage != null)
+                    {
+                        //prioritize page setting
+                        hasNavBar = Microsoft.Maui.Controls.NavigationPage.GetHasNavigationBar(view.CurrentPage);
+                    }
+
+                    handler._navigationController.SetNavigationBarHidden(!hasNavBar, false);
+                    //handler._navigationController.NavigationBarHidden = !hasNavBar;
+                    Debug.WriteLine($"{TAG} 🔵 NavigationBar visibility changed: {hasNavBar}");
+                }
             }
         }
 
         protected override NavigationView CreatePlatformView()
         {
-            // Create UINavigationController
             _navigationController = new UINavigationController();
-            
-            // Custom delegate provides IUIViewControllerAnimatedTransitioning for non-Default transitions
-            // (SlideFromBottom, Fade, ZoomIn, etc.). Completion is tracked via transition coordinator.
             _navigationController.Delegate = new LightNavigationControllerDelegate();
+            _navigationController.NavigationBarHidden = this.VirtualView != null 
+                                                        && !Microsoft.Maui.Controls.NavigationPage.GetHasNavigationBar((BindableObject)this.VirtualView);
 
-            // Set initial NavigationBar visibility based on VirtualView
-            // Default is visible unless explicitly hidden
-            if (VirtualView != null)
+            return new NavigationView()
             {
-                var hasNavBar = Microsoft.Maui.Controls.NavigationPage.GetHasNavigationBar(VirtualView);
-                _navigationController.NavigationBarHidden = !hasNavBar;
-                Debug.WriteLine($"{TAG} 🔵 NavigationBar visibility: {hasNavBar}");
-            }
-            else
-            {
-                // Default to visible
-                _navigationController.NavigationBarHidden = false;
-            }
-
-            // Return the navigation controller's View wrapped in NavigationView
-            var navigationView = new NavigationView
-            {
-                NavigationController = _navigationController
+                NavigationController = this._navigationController
             };
-
-            return navigationView;
         }
 
         protected override void ConnectHandler(NavigationView platformView)
@@ -239,46 +192,30 @@ namespace LightNavigation.Platform
             }
         }
 
-        protected virtual void SetupNewPage(UINavigationController navigationController, Page page,
-            UIViewController viewController, bool updateNavBar)
+        protected virtual void SetupNewPage(
+            UINavigationController navigationController,
+            Microsoft.Maui.Controls.Page page,
+            UIViewController viewController)
         {
-            if (navigationController != null && page != null)
+            if (navigationController == null || page == null)
+                return;
+            if (page.Handler.PlatformView is UIView platformView && page.BackgroundColor != null)
             {
-                var pageView = page.Handler?.PlatformView as UIView;
-                // We need to manually apply BackgroundColor to the MAUI page
-                if (pageView != null && page.BackgroundColor != null)
-                {
-                    var mauiBgColor = page.BackgroundColor;
-                    var nativeColor = mauiBgColor.ToPlatform();
-                    pageView.BackgroundColor = nativeColor;
-                    Debug.WriteLine($"{TAG} 🔵 Applied background color: {mauiBgColor} -> {nativeColor}");
-                }
-                else
-                {
-                    Debug.WriteLine($"{TAG} ⚠️ Page BackgroundColor is null, using default");
-                }
-
-                if (viewController != null)
-                {
-                    viewController.NavigationItem.Title = page.Title;
-                    Debug.WriteLine($"{TAG} 🔵 Set navigation title: {page.Title}");
-                }
-
-                // Only update navbar AFTER the page is in the navigation stack
-                // Calling this before push would change the CURRENT page's navbar, causing blank page
-                if (updateNavBar)
-                {
-                    var hasNavBar = Microsoft.Maui.Controls.NavigationPage.GetHasNavigationBar(page);
-                    navigationController.NavigationBarHidden = !hasNavBar;
-                    Debug.WriteLine($"{TAG} 🔵 Page NavigationBar visibility: {hasNavBar}");
-                    if (hasNavBar)
-                    {
-                        UpdateBarTextColor();
-                    }
-                }
+                UIColor platform = page.BackgroundColor.ToPlatform();
+                platformView.BackgroundColor = platform;
             }
+            if (viewController != null)
+                viewController.NavigationItem.Title = page.Title;
+
+            bool hasNavigationBar = Microsoft.Maui.Controls.NavigationPage.GetHasNavigationBar((BindableObject)page);
+            navigationController.NavigationBarHidden = !hasNavigationBar;
+            
+            if (!hasNavigationBar)
+                return;
+
+            this.UpdateBarTextColor();
         }
-        
+
         protected override void DisconnectHandler(NavigationView platformView)
         {
             // Unsubscribe from navigation events
@@ -501,6 +438,10 @@ namespace LightNavigation.Platform
                     return tcs.Task;
                 }
 
+                //Make page fullscreen if needed
+                if (!page.On<iOS>().UsingSafeArea())
+                    page.On<iOS>().SetSafeAreaInsets(new Thickness(0.0));
+
                 // Create view and wrap in LightPageViewController
                 var pageView = page.ToPlatform(MauiContext);
                 
@@ -534,9 +475,14 @@ namespace LightNavigation.Platform
                     _viewControllerStack.Add(viewController);
 
                     // Safe to update navbar here - page is already in the nav stack
-                    SetupNewPage(_navigationController, page, viewController, updateNavBar: true);
+                    SetupNewPage(_navigationController, page, viewController);
 
                     _pageStack.Add(page);
+
+                    //not working
+                    UpdateSetNavigationBarForPage(page, false);
+                    //UpdateNavigationBarVisibility(page);
+
                     oldAware?.OnCovered();
                     newAware?.OnTopmost();
 
@@ -546,7 +492,7 @@ namespace LightNavigation.Platform
                 {
                     // Set bg color and title BEFORE push (safe - doesn't affect current page)
                     // But do NOT update navbar yet - that would change the CURRENT page's navbar
-                    SetupNewPage(_navigationController, page, viewController, updateNavBar: false);
+                    SetupNewPage(_navigationController, page, viewController);
 
                     // Use native UINavigationController push animation
                     // This properly handles navbar transitions between pages
@@ -555,8 +501,8 @@ namespace LightNavigation.Platform
                     _viewControllerStack.Add(viewController);
                     _pageStack.Add(page);
 
-                    // NOW update navbar visibility - page is in the stack
-                    UpdateNavigationBarVisibility(page);
+                    //not working
+                    //UpdateNavigationBarVisibility(page);
 
                     newAware?.OnTopmost();
                     oldAware?.OnCovered();
@@ -868,18 +814,24 @@ namespace LightNavigation.Platform
         }
 
         // Update navigation bar visibility based on the current page's attached property
-        private void UpdateNavigationBarVisibility(Page? page)
+        private void UpdateNavigationBarVisibility(MauiPage? page)
         {
-            if (_navigationController == null)
+            if (this._navigationController == null || page == null)
                 return;
+            this._navigationController.SetNavigationBarHidden(!Microsoft.Maui.Controls.NavigationPage.GetHasNavigationBar((BindableObject)page), false);
 
-            if (page != null)
-            {
-                // Check the attached property on the page
-                var hasNavBar = Microsoft.Maui.Controls.NavigationPage.GetHasNavigationBar(page);
-                _navigationController.SetNavigationBarHidden(!hasNavBar, false);
-                Debug.WriteLine($"{TAG} 🔵 Updated NavigationBar visibility for {page.GetType().Name}: {hasNavBar}");
-            }
+
+            //if (_navigationController.TopViewController != null)
+            //{
+            //    _navigationController.TopViewController.View?.SetNeedsLayout();
+            //    _navigationController.TopViewController.View?.LayoutIfNeeded();
+
+            //    // Trigger safe area update
+            //    if (OperatingSystem.IsIOSVersionAtLeast(11))
+            //    {
+            //        _navigationController.TopViewController.ViewSafeAreaInsetsDidChange();
+            //    }
+            //}
         }
 
         private double GetAnimationDuration(MauiPage? page, bool isPush)

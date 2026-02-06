@@ -1159,6 +1159,10 @@ namespace LightNavigation.Platform
                     _navigationController.SetViewControllers(new[] { viewController }!, false);
                     _viewControllerStack.Add(viewController!);
                     _pageStack.Add(page);
+
+                    var hasNavBar = NavigationPage.GetHasNavigationBar(page);
+                    _navigationController.SetNavigationBarHidden(!hasNavBar, false);
+
                     oldAware?.OnCovered();
                     newAware?.OnTopmost();
 
@@ -1278,6 +1282,9 @@ namespace LightNavigation.Platform
                         _viewControllerStack.Add(viewController!);
                         _pageStack.Add(page);
                         Debug.WriteLine($"{TAG} 🔵 Stack updated - count: {_viewControllerStack.Count}");
+
+                        var hasNavBar = NavigationPage.GetHasNavigationBar(page);
+                        _navigationController.SetNavigationBarHidden(!hasNavBar, false);
 
                         newAware?.OnTopmost();
                         oldAware?.OnCovered();
@@ -1745,10 +1752,23 @@ namespace LightNavigation.Platform
 
             if (page != null)
             {
-                // Check the attached property on the page
                 var hasNavBar = Microsoft.Maui.Controls.NavigationPage.GetHasNavigationBar(page);
                 _navigationController.SetNavigationBarHidden(!hasNavBar, false);
                 Debug.WriteLine($"{TAG} 🔵 Updated NavigationBar visibility for {page.GetType().Name}: {hasNavBar}");
+
+                // CRITICAL: Force the top view controller to update safe area insets
+                // This ensures MAUI re-measures the page with correct safe areas
+                if (_navigationController.TopViewController != null)
+                {
+                    _navigationController.TopViewController.View?.SetNeedsLayout();
+                    _navigationController.TopViewController.View?.LayoutIfNeeded();
+
+                    // Trigger safe area update
+                    if (OperatingSystem.IsIOSVersionAtLeast(11))
+                    {
+                        _navigationController.TopViewController.ViewSafeAreaInsetsDidChange();
+                    }
+                }
             }
         }
     }
