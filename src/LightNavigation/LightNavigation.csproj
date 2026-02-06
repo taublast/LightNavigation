@@ -14,11 +14,13 @@
     <Product>Plugin.Maui.LightNavigation</Product>
     <Description>A subclassed NavigationPage for .NET MAUI with animated page transitions. Adds navigation lifecycle awareness.</Description>
     <PackageTags>maui;navigation;navigationpage;android;ios;windows;performance</PackageTags>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/yourusername/LightNavigation</RepositoryUrl>
-    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-  </PropertyGroup>
+      <PackageLicenseExpression>MIT</PackageLicenseExpression>
+      <RepositoryUrl>https://github.com/yourusername/LightNavigation</RepositoryUrl>
+      <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+      <PackageReadmeFile>README.md</PackageReadmeFile>
+      <IncludeSymbols>true</IncludeSymbols>
+      <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    </PropertyGroup>
 
   <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.19041.0'">
     <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
