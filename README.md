@@ -20,8 +20,8 @@ Solves:
 * Lack of different transition animations options. 
 * Lifecycle awareness for pages, so they now "know" if they are covered/removed/went on top etc to properly manage data and resources.
 
-## 🎈 What's New in v1.5.0
-* Fixed iOS transitions issue
+## 🎈 What's New in v1.5.1
+* Fixed iOS transitions and safe insets
 
 ## 📦 Installation
 

@@ -246,6 +246,39 @@ public partial class MainPage : ContentPage
         UpdateStackInfo();
     }
 
+    private async void OnPlayAllTransitionsClicked(object sender, EventArgs e)
+    {
+        Log("→ Starting play all transitions test (cycling through each available transition)...");
+
+        // Get all available animation types except Default
+        var animationTypes = Enum.GetValues<AnimationType>()
+            .Where(t => t != AnimationType.Default)
+            .ToArray();
+
+        for (int i = 0; i < animationTypes.Length; i++)
+        {
+            var transition = animationTypes[i];
+            Log($"  [{i + 1}/{animationTypes.Length}] Testing: {transition}");
+
+            // Create page with this specific transition
+            var page = new DetailPage(_navigationCount++);
+            LightNavigationPage.SetTransition(page, transition);
+
+            await Navigation.PushAsync(page, animated: true);
+            Log($"  [{i + 1}/{animationTypes.Length}] Pushed with {transition}");
+
+            await Task.Delay(800); // Give time to see the transition
+
+            await Navigation.PopAsync(animated: true);
+            Log($"  [{i + 1}/{animationTypes.Length}] Popped with {transition}");
+
+            await Task.Delay(400); // Brief pause between transitions
+        }
+
+        Log($"✓ All transitions test completed! Tested {animationTypes.Length} transitions.");
+        UpdateStackInfo();
+    }
+
     private async void OnRandomAnimationPushPopClicked(object sender, EventArgs e)
     {
         Log($"→ Starting random transition test (20 cycles, each with different random transition)...");

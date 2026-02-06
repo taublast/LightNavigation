@@ -9,71 +9,20 @@ namespace LightNavigation.Platform
 {
     public class LightPageViewController : UIViewController
     {
-
         public virtual void SetPage(MauiPage targetPage)
         {
             MauiPage = targetPage;
         }
 
         public MauiPage? MauiPage { get; set; }
-        private bool _safeAreaAdjusted = false;
-
-        //    /*
-        //    public override void ViewSafeAreaInsetsDidChange()
-        //    {
-        //        base.ViewSafeAreaInsetsDidChange();
-
-        //        // Go fullscreen
-        //        // Only do this once to avoid recursion
-        //        if (View!=null && !_safeAreaAdjusted)
-        //        {
-        //            _safeAreaAdjusted = true;
-
-        //            var check = NavigationController;
-
-        //            var safeArea = View.SafeAreaInsets;
-        //            var hasNavBar = Microsoft.Maui.Controls.NavigationPage.GetHasNavigationBar(MauiPage);
-
-        //            // Calculate correct safe area insets
-        //            var topInset = safeArea.Top; // Status bar area
-        //            var bottomInset = safeArea.Bottom; // Home indicator area
-
-        //            // If navigation bar is visible, add its height to top inset
-        //            if (!hasNavBar && NavigationController?.NavigationBar != null)
-        //            {
-        //                topInset -= NavigationController.NavigationBar.Frame.Height;
-        //            }
-
-        //            MauiPage.On<iOS>().SetSafeAreaInsets(
-        //                new Thickness(safeArea.Left, topInset, safeArea.Right, bottomInset));
-
-        //            System.Diagnostics.Debug.WriteLine($"[LightPageVC] Set safe area - Top: {topInset}, Bottom: {bottomInset}, HasNavBar: {hasNavBar}");
-
-
-        //            // Counteract safe area insets by setting negative additional insets
-        //            var safeArea = View.SafeAreaInsets;
-        //            AdditionalSafeAreaInsets = new UIEdgeInsets(
-        //                -safeArea.Top,
-        //                -safeArea.Left,
-        //                -safeArea.Bottom,
-        //                -safeArea.Right
-        //            );
-
-        //        }
-        //    }
-        //    */
-
 
         public override void ViewSafeAreaInsetsDidChange()
         {
             base.ViewSafeAreaInsetsDidChange();
 
-            // Set safe areas when iOS has calculated them
-            if (!_safeAreaAdjusted && View != null && MauiPage != null)
+            // Update safe areas whenever iOS reports changes (happens during animations)
+            if (View != null && MauiPage != null)
             {
-              
-                //_safeAreaAdjusted = true;
-
                 var safeArea = View.SafeAreaInsets;
                 var hasNavBar = Microsoft.Maui.Controls.NavigationPage.GetHasNavigationBar(MauiPage);
 
@@ -81,20 +30,22 @@ namespace LightNavigation.Platform
                 var topInset = safeArea.Top; // Status bar area
                 var bottomInset = safeArea.Bottom; // Home indicator area
 
-                /*
-                // If navigation bar is visible, add its height to top inset
-                if (!hasNavBar && NavigationController?.NavigationBar != null)
-                {
-                    topInset -= NavigationController.NavigationBar.Frame.Height;
-                }
+                // Navigation bar height is already included in safeArea.Top by iOS when navbar is visible
+                // We don't need to add it manually
 
                 MauiPage.On<iOS>().SetSafeAreaInsets(
                     new Thickness(safeArea.Left, topInset, safeArea.Right, bottomInset));
-                */
+
+                // Force MAUI to re-layout the page with new safe areas
+                if (MauiPage.Handler?.PlatformView is UIView platformView)
+                {
+                    platformView.SetNeedsLayout();
+                    platformView.LayoutIfNeeded();
+                }
+
                 System.Diagnostics.Debug.WriteLine($"[LightPageVC] {MauiPage.GetType().Name} SafeAreaInsets - Top: {topInset}, Bottom: {bottomInset}, HasNavBar: {hasNavBar}");
             }
         }
-
     }
 }
 #endif
