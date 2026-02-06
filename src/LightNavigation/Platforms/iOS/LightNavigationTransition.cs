@@ -4,6 +4,7 @@ using UIKit;
 using Foundation;
 using CoreGraphics;
 using CoreAnimation;
+using Microsoft.Maui.Controls;
 using Microsoft.Maui.Platform;
 
 namespace LightNavigation.Platform
@@ -68,6 +69,21 @@ namespace LightNavigation.Platform
             toView.LayoutIfNeeded();
             fromView.SetNeedsLayout();
             fromView.LayoutIfNeeded();
+
+            // Animate navbar visibility alongside the custom transition
+            var navController = toViewController.NavigationController;
+            if (navController != null)
+            {
+                Page? targetPage = null;
+                if (toViewController is LightPageViewController lightToVC)
+                    targetPage = lightToVC.MauiPage;
+
+                if (targetPage != null)
+                {
+                    var hasNavBar = NavigationPage.GetHasNavigationBar(targetPage);
+                    navController.SetNavigationBarHidden(!hasNavBar, true);
+                }
+            }
 
             var curve = GetAnimationCurve(_easing, _operation == UINavigationControllerOperation.Push);
             

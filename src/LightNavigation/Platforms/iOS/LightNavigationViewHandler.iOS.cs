@@ -9,7 +9,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using UIKit;
-using CoreAnimation;
+using CoreGraphics;
 using Debug = System.Diagnostics.Debug;
 using MauiNavigationPage = Microsoft.Maui.Controls.NavigationPage;
 using MauiPage = Microsoft.Maui.Controls.Page;
@@ -81,6 +81,9 @@ namespace LightNavigation.Platform
     public class LightNavigationViewHandler : ViewHandler<LightNavigationPage, NavigationView>, IPlatformViewHandler
     {
         private const string TAG = "[LightNavigation_iOS]";
+        private const double ANIMATION_IN_DURATION = 0.3;
+        private const double ANIMATION_OUT_DURATION = 0.3;
+        private const double WHIRL3_DURATION = 0.4;
 
         private UINavigationController? _navigationController;
         private readonly List<UIViewController> _viewControllerStack = new();
@@ -148,7 +151,7 @@ namespace LightNavigation.Platform
         public static IPropertyMapper<LightNavigationPage, LightNavigationViewHandler> PropertyMapper =
             new PropertyMapper<LightNavigationPage, LightNavigationViewHandler>(ViewHandler.ViewMapper)
             {
-                //[Microsoft.Maui.Controls.NavigationPage.HasNavigationBarProperty.PropertyName] = MapHasNavigationBar
+                [Microsoft.Maui.Controls.NavigationPage.HasNavigationBarProperty.PropertyName] = MapHasNavigationBar
             };
 
         public static CommandMapper<LightNavigationPage, LightNavigationViewHandler> CommandMapper =
@@ -172,9 +175,9 @@ namespace LightNavigation.Platform
             // Create UINavigationController
             _navigationController = new UINavigationController();
             
-            // Assign our custom delegate to handle transitions
+            // Custom delegate provides IUIViewControllerAnimatedTransitioning for non-Default transitions
+            // (SlideFromBottom, Fade, ZoomIn, etc.). Completion is tracked via transition coordinator.
             _navigationController.Delegate = new LightNavigationControllerDelegate();
-            Debug.WriteLine($"{TAG} ✅ Assigned LightNavigationControllerDelegate");
 
             // Set initial NavigationBar visibility based on VirtualView
             // Default is visible unless explicitly hidden
@@ -237,14 +240,11 @@ namespace LightNavigation.Platform
         }
 
         protected virtual void SetupNewPage(UINavigationController navigationController, Page page,
-            UIViewController viewController)
+            UIViewController viewController, bool updateNavBar)
         {
-            // IMPORTANT: Update navigation bar visibility for the initial page
-            // The property mapper might not have run yet during initial setup
-            if (navigationController != null && page!=null)
+            if (navigationController != null && page != null)
             {
-
-                var pageView = page.Handler.PlatformView as UIView;
+                var pageView = page.Handler?.PlatformView as UIView;
                 // We need to manually apply BackgroundColor to the MAUI page
                 if (pageView != null && page.BackgroundColor != null)
                 {
@@ -264,12 +264,17 @@ namespace LightNavigation.Platform
                     Debug.WriteLine($"{TAG} 🔵 Set navigation title: {page.Title}");
                 }
 
-                var hasNavBar = Microsoft.Maui.Controls.NavigationPage.GetHasNavigationBar(page);
-                navigationController.NavigationBarHidden = !hasNavBar;
-                Debug.WriteLine($"{TAG} 🔵 Initial page NavigationBar visibility: {hasNavBar}");
-                if (hasNavBar)
+                // Only update navbar AFTER the page is in the navigation stack
+                // Calling this before push would change the CURRENT page's navbar, causing blank page
+                if (updateNavBar)
                 {
-                    UpdateBarTextColor();
+                    var hasNavBar = Microsoft.Maui.Controls.NavigationPage.GetHasNavigationBar(page);
+                    navigationController.NavigationBarHidden = !hasNavBar;
+                    Debug.WriteLine($"{TAG} 🔵 Page NavigationBar visibility: {hasNavBar}");
+                    if (hasNavBar)
+                    {
+                        UpdateBarTextColor();
+                    }
                 }
             }
         }
@@ -528,7 +533,8 @@ namespace LightNavigation.Platform
                     _navigationController.SetViewControllers(new[] { viewController }, false);
                     _viewControllerStack.Add(viewController);
 
-                    SetupNewPage(_navigationController, page, viewController);
+                    // Safe to update navbar here - page is already in the nav stack
+                    SetupNewPage(_navigationController, page, viewController, updateNavBar: true);
 
                     _pageStack.Add(page);
                     oldAware?.OnCovered();
@@ -538,44 +544,47 @@ namespace LightNavigation.Platform
                 }
                 else
                 {
-                    SetupNewPage(_navigationController, page, viewController);
+                    // Set bg color and title BEFORE push (safe - doesn't affect current page)
+                    // But do NOT update navbar yet - that would change the CURRENT page's navbar
+                    SetupNewPage(_navigationController, page, viewController, updateNavBar: false);
 
-                    // Determine if we should animate
-                    bool actuallyAnimate = animate && transition != AnimationType.None;
-                    
-                    Debug.WriteLine($"{TAG} ➡️ Pushing ViewController, Animate: {actuallyAnimate}");
-                    
-                    if (actuallyAnimate)
+                    // Use native UINavigationController push animation
+                    // This properly handles navbar transitions between pages
+                    Debug.WriteLine($"{TAG} ➡️ Pushing ViewController, Animate: {animate}, Transition: {transition}");
+                    _navigationController.PushViewController(viewController, animate);
+                    _viewControllerStack.Add(viewController);
+                    _pageStack.Add(page);
+
+                    // NOW update navbar visibility - page is in the stack
+                    UpdateNavigationBarVisibility(page);
+
+                    newAware?.OnTopmost();
+                    oldAware?.OnCovered();
+
+                    if (animate)
                     {
-                        CATransaction.Begin();
-                        CATransaction.CompletionBlock = () =>
+                        // CRITICAL: Wait for native push animation to complete before resolving TCS.
+                        // If TCS resolves immediately, the next pop can start while the push animation
+                        // is still running (100ms delay < 300ms animation), causing the pop's manual
+                        // animation to fight with iOS's still-running push animation (visual chaos).
+                        var coordinator = viewController.GetTransitionCoordinator();
+                        if (coordinator != null)
                         {
-                            Debug.WriteLine($"{TAG} ✅ Push animation complete");
-                            tcs.TrySetResult(true);
-                        };
-                    }
-
-                    // Push the view controller
-                    // The Delegate will handle the custom transition if actuallyAnimate is true
-                    _navigationController.PushViewController(viewController, actuallyAnimate);
-                    
-                    if (actuallyAnimate)
-                    {
-                        CATransaction.Commit();
+                            coordinator.AnimateAlongsideTransition((context) => { }, (context) =>
+                            {
+                                Debug.WriteLine($"{TAG} ✅ Push animation complete");
+                                tcs.TrySetResult(true);
+                            });
+                        }
+                        else
+                        {
+                            tcs.SetResult(true);
+                        }
                     }
                     else
                     {
                         tcs.SetResult(true);
                     }
-                    
-                    _viewControllerStack.Add(viewController);
-                    _pageStack.Add(page);
-
-                    // Update navbar visibility based on the page's attached property
-                    UpdateNavigationBarVisibility(page);
-
-                    newAware?.OnTopmost();
-                    oldAware?.OnCovered();
                 }
             }
             catch (Exception ex)
@@ -610,57 +619,39 @@ namespace LightNavigation.Platform
 
                 Debug.WriteLine($"{TAG} ⬅️ Popping, animate: {animate}, transition: {transition}");
 
-                // Get pages for INavigationAware
-                var oldPage = _pageStack.Count > 0 ? _pageStack.Last() : null;
-                var newPage = _pageStack.Count > 1 ? _pageStack[_pageStack.Count - 2] : null;
+                var oldAware = (_pageStack.Count > 0 ? _pageStack.Last() : null) as INavigationAware;
+                var newAware = (_pageStack.Count > 1 ? _pageStack[_pageStack.Count - 2] : null) as INavigationAware;
 
-                var newAware = newPage as INavigationAware;
-                var oldAware = oldPage as INavigationAware;
-
-                bool actuallyAnimate = animate && transition != AnimationType.None;
-
-                if (actuallyAnimate)
+                if (animate)
                 {
-                    CATransaction.Begin();
-                    CATransaction.CompletionBlock = () =>
+                    // Use native iOS pop animation for ALL transitions
+                    // This properly handles navbar transitions (no jumping)
+                    // Track completion via transition coordinator (reliable, unlike CATransaction)
+                    _navigationController.PopViewController(true);
+
+                    var newTopVC = _navigationController.TopViewController;
+                    var coordinator = newTopVC?.GetTransitionCoordinator();
+                    if (coordinator != null)
                     {
-                        Debug.WriteLine($"{TAG} ✅ Pop animation complete");
-                        tcs.TrySetResult(true);
-                    };
-                }
-
-                // Pop the view controller
-                // The Delegate will handle the custom transition if actuallyAnimate is true
-                _navigationController.PopViewController(actuallyAnimate);
-
-                if (actuallyAnimate)
-                {
-                    CATransaction.Commit();
+                        coordinator.AnimateAlongsideTransition((ctx) => { }, (ctx) =>
+                        {
+                            Debug.WriteLine($"{TAG} ✅ Pop animation complete");
+                            PopCleanupStacks(oldAware, newAware);
+                            tcs.TrySetResult(true);
+                        });
+                    }
+                    else
+                    {
+                        PopCleanupStacks(oldAware, newAware);
+                        tcs.SetResult(true);
+                    }
                 }
                 else
                 {
+                    _navigationController.PopViewController(false);
+                    PopCleanupStacks(oldAware, newAware);
                     tcs.SetResult(true);
                 }
-
-                if (_viewControllerStack.Count > 0)
-                {
-                    var poppedViewController = _viewControllerStack[_viewControllerStack.Count - 1];
-                    _viewControllerStack.RemoveAt(_viewControllerStack.Count - 1);
-
-                    // Clear MauiPage reference to prevent memory leak
-                    if (poppedViewController is LightPageViewController lightPageVC)
-                    {
-                        lightPageVC.MauiPage = null;
-                    }
-                }
-
-                if (_pageStack.Count > 0)
-                {
-                    _pageStack.RemoveAt(_pageStack.Count - 1);
-                }
-
-                oldAware?.OnRemoved();
-                newAware?.OnTopmost();
             }
             catch (Exception ex)
             {
@@ -670,6 +661,27 @@ namespace LightNavigation.Platform
             }
 
             return tcs.Task;
+        }
+
+        private void PopCleanupStacks(INavigationAware? oldAware, INavigationAware? newAware)
+        {
+            if (_viewControllerStack.Count > 0)
+            {
+                var poppedVC = _viewControllerStack[_viewControllerStack.Count - 1];
+                _viewControllerStack.RemoveAt(_viewControllerStack.Count - 1);
+                if (poppedVC is LightPageViewController lightPageVC)
+                {
+                    lightPageVC.MauiPage = null;
+                }
+            }
+
+            if (_pageStack.Count > 0)
+            {
+                _pageStack.RemoveAt(_pageStack.Count - 1);
+            }
+
+            oldAware?.OnRemoved();
+            newAware?.OnTopmost();
         }
 
         private Task PopToRootAsync(bool animate, AnimationType transition)
@@ -692,71 +704,40 @@ namespace LightNavigation.Platform
                     return tcs.Task;
                 }
 
-                Debug.WriteLine($"{TAG} 🏠 PopToRoot, animate: {animate}");
+                Debug.WriteLine($"{TAG} 🏠 PopToRoot, animate: {animate}, stack: {_viewControllerStack.Count}");
 
-                // Get references BEFORE popping
                 var rootViewController = _viewControllerStack.First();
                 var rootPage = _pageStack.First();
-
-                // Get all pages that will be removed (for INavigationAware)
                 var removedPages = _pageStack.Skip(1).ToList();
-
-                // Get all view controllers that will be removed (to clear MauiPage references)
                 var removedViewControllers = _viewControllerStack.Skip(1).ToList();
 
-                bool actuallyAnimate = animate && transition != AnimationType.None;
-
-                if (actuallyAnimate)
+                if (animate)
                 {
-                    CATransaction.Begin();
-                    CATransaction.CompletionBlock = () =>
+                    // Use native iOS pop-to-root animation for ALL transitions
+                    _navigationController.PopToRootViewController(true);
+
+                    var newTopVC = _navigationController.TopViewController;
+                    var coordinator = newTopVC?.GetTransitionCoordinator();
+                    if (coordinator != null)
                     {
-                        Debug.WriteLine($"{TAG} ✅ PopToRoot animation complete");
-                        tcs.TrySetResult(true);
-                    };
-                }
-
-                // Pop to root
-                _navigationController.PopToRootViewController(actuallyAnimate);
-
-                if (actuallyAnimate)
-                {
-                    CATransaction.Commit();
+                        coordinator.AnimateAlongsideTransition((ctx) => { }, (ctx) =>
+                        {
+                            Debug.WriteLine($"{TAG} ✅ PopToRoot animation complete");
+                            PopToRootCleanupStacks(rootViewController, rootPage, removedViewControllers, removedPages);
+                            tcs.TrySetResult(true);
+                        });
+                    }
+                    else
+                    {
+                        PopToRootCleanupStacks(rootViewController, rootPage, removedViewControllers, removedPages);
+                        tcs.SetResult(true);
+                    }
                 }
                 else
                 {
+                    _navigationController.PopToRootViewController(false);
+                    PopToRootCleanupStacks(rootViewController, rootPage, removedViewControllers, removedPages);
                     tcs.SetResult(true);
-                }
-
-                // Update stacks
-                _viewControllerStack.Clear();
-                _viewControllerStack.Add(rootViewController);
-
-                _pageStack.Clear();
-                _pageStack.Add(rootPage);
-
-                // Clear MauiPage references to prevent memory leaks
-                foreach (var vc in removedViewControllers)
-                {
-                    if (vc is LightPageViewController lightPageVC)
-                    {
-                        lightPageVC.MauiPage = null;
-                    }
-                }
-
-                // Notify INavigationAware - all removed pages
-                foreach (var removedPage in removedPages)
-                {
-                    if (removedPage is INavigationAware aware)
-                    {
-                        aware.OnRemoved();
-                    }
-                }
-
-                // Root page is now topmost
-                if (rootPage is INavigationAware rootAware)
-                {
-                    rootAware.OnTopmost();
                 }
             }
             catch (Exception ex)
@@ -766,6 +747,37 @@ namespace LightNavigation.Platform
             }
 
             return tcs.Task;
+        }
+
+        private void PopToRootCleanupStacks(UIViewController rootViewController, MauiPage rootPage,
+            List<UIViewController> removedViewControllers, List<MauiPage> removedPages)
+        {
+            _viewControllerStack.Clear();
+            _viewControllerStack.Add(rootViewController);
+
+            _pageStack.Clear();
+            _pageStack.Add(rootPage);
+
+            foreach (var vc in removedViewControllers)
+            {
+                if (vc is LightPageViewController lightPageVC)
+                {
+                    lightPageVC.MauiPage = null;
+                }
+            }
+
+            foreach (var removedPage in removedPages)
+            {
+                if (removedPage is INavigationAware aware)
+                {
+                    aware.OnRemoved();
+                }
+            }
+
+            if (rootPage is INavigationAware rootAware)
+            {
+                rootAware.OnTopmost();
+            }
         }
 
         // Property change handler for NavigationPage properties
@@ -868,6 +880,203 @@ namespace LightNavigation.Platform
                 _navigationController.SetNavigationBarHidden(!hasNavBar, false);
                 Debug.WriteLine($"{TAG} 🔵 Updated NavigationBar visibility for {page.GetType().Name}: {hasNavBar}");
             }
+        }
+
+        private double GetAnimationDuration(MauiPage? page, bool isPush)
+        {
+            if (page != null)
+            {
+                var customSpeed = LightNavigationPage.GetTransitionSpeed(page);
+                if (customSpeed > 0)
+                {
+                    return customSpeed / 1000.0;
+                }
+
+                var transition = LightNavigationPage.GetEffectiveTransition(page);
+                if (transition == AnimationType.WhirlIn3)
+                {
+                    return WHIRL3_DURATION;
+                }
+            }
+
+            return isPush ? ANIMATION_IN_DURATION : ANIMATION_OUT_DURATION;
+        }
+
+        private UIViewAnimationCurve GetAnimationCurve(MauiPage? page, bool isPush)
+        {
+            if (page != null)
+            {
+                var easing = LightNavigationPage.GetTransitionEasing(page);
+
+                switch (easing)
+                {
+                    case TransitionEasing.Linear:
+                        return UIViewAnimationCurve.Linear;
+                    case TransitionEasing.Decelerate:
+                        return UIViewAnimationCurve.EaseOut;
+                    case TransitionEasing.Accelerate:
+                        return UIViewAnimationCurve.EaseIn;
+                    case TransitionEasing.AccelerateDecelerate:
+                        return UIViewAnimationCurve.EaseInOut;
+                }
+            }
+
+            return isPush ? UIViewAnimationCurve.EaseOut : UIViewAnimationCurve.EaseIn;
+        }
+
+        private void ApplyPopAnimationStart(UIView oldView, UIView newView, CGRect containerBounds, AnimationType transition)
+        {
+            switch (transition)
+            {
+                case AnimationType.Default:
+                case AnimationType.SlideFromRight:
+                    oldView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    oldView.Transform = CGAffineTransform.MakeIdentity();
+                    newView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    break;
+
+                case AnimationType.SlideFromLeft:
+                    oldView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    oldView.Transform = CGAffineTransform.MakeIdentity();
+                    newView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    break;
+
+                case AnimationType.SlideFromBottom:
+                    oldView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    oldView.Transform = CGAffineTransform.MakeIdentity();
+                    newView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    break;
+
+                case AnimationType.SlideFromTop:
+                    oldView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    oldView.Transform = CGAffineTransform.MakeIdentity();
+                    newView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    break;
+
+                case AnimationType.ParallaxSlideFromRight:
+                    oldView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    oldView.Transform = CGAffineTransform.MakeIdentity();
+                    newView.Frame = new CGRect(-containerBounds.Width * 0.3, 0, containerBounds.Width, containerBounds.Height);
+                    break;
+
+                case AnimationType.ParallaxSlideFromLeft:
+                    oldView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    oldView.Transform = CGAffineTransform.MakeIdentity();
+                    newView.Frame = new CGRect(containerBounds.Width * 0.3, 0, containerBounds.Width, containerBounds.Height);
+                    break;
+
+                case AnimationType.Fade:
+                    oldView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    oldView.Alpha = 1;
+                    newView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    newView.Alpha = 0;
+                    oldView.Transform = CGAffineTransform.MakeIdentity();
+                    newView.Transform = CGAffineTransform.MakeIdentity();
+                    break;
+
+                case AnimationType.ZoomIn:
+                    oldView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    oldView.Alpha = 1;
+                    oldView.Transform = CGAffineTransform.MakeIdentity();
+                    newView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    newView.Alpha = 1;
+                    newView.Transform = CGAffineTransform.MakeIdentity();
+                    break;
+
+                case AnimationType.ZoomOut:
+                    oldView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    oldView.Alpha = 1;
+                    oldView.Transform = CGAffineTransform.MakeIdentity();
+                    newView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    newView.Alpha = 1;
+                    newView.Transform = CGAffineTransform.MakeIdentity();
+                    break;
+
+                case AnimationType.WhirlIn:
+                case AnimationType.WhirlIn3:
+                    oldView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    oldView.Alpha = 1;
+                    oldView.Transform = CGAffineTransform.MakeIdentity();
+                    newView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    newView.Alpha = 1;
+                    newView.Transform = CGAffineTransform.MakeIdentity();
+                    break;
+
+                case AnimationType.None:
+                    oldView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    oldView.Transform = CGAffineTransform.MakeIdentity();
+                    newView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                    newView.Transform = CGAffineTransform.MakeIdentity();
+                    break;
+            }
+        }
+
+        private Action CreatePopAnimation(UIView oldView, UIView newView, CGRect containerBounds, AnimationType transition)
+        {
+            return () =>
+            {
+                switch (transition)
+                {
+                    case AnimationType.Default:
+                    case AnimationType.SlideFromRight:
+                        oldView.Frame = new CGRect(containerBounds.Width, 0, containerBounds.Width, containerBounds.Height);
+                        break;
+
+                    case AnimationType.SlideFromLeft:
+                        oldView.Frame = new CGRect(-containerBounds.Width, 0, containerBounds.Width, containerBounds.Height);
+                        break;
+
+                    case AnimationType.SlideFromBottom:
+                        oldView.Frame = new CGRect(0, containerBounds.Height, containerBounds.Width, containerBounds.Height);
+                        break;
+
+                    case AnimationType.SlideFromTop:
+                        oldView.Frame = new CGRect(0, -containerBounds.Height, containerBounds.Width, containerBounds.Height);
+                        break;
+
+                    case AnimationType.ParallaxSlideFromRight:
+                        oldView.Frame = new CGRect(containerBounds.Width, 0, containerBounds.Width, containerBounds.Height);
+                        newView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                        break;
+
+                    case AnimationType.ParallaxSlideFromLeft:
+                        oldView.Frame = new CGRect(-containerBounds.Width, 0, containerBounds.Width, containerBounds.Height);
+                        newView.Frame = new CGRect(0, 0, containerBounds.Width, containerBounds.Height);
+                        break;
+
+                    case AnimationType.Fade:
+                        oldView.Alpha = 0;
+                        newView.Alpha = 1;
+                        break;
+
+                    case AnimationType.ZoomIn:
+                        oldView.Alpha = 0;
+                        oldView.Transform = CGAffineTransform.MakeScale(0.3f, 0.3f);
+                        break;
+
+                    case AnimationType.ZoomOut:
+                        oldView.Alpha = 0;
+                        oldView.Transform = CGAffineTransform.MakeScale(1.5f, 1.5f);
+                        break;
+
+                    case AnimationType.WhirlIn:
+                        oldView.Alpha = 0;
+                        var whirlOutTransform = CGAffineTransform.MakeRotation((float)System.Math.PI);
+                        whirlOutTransform = CGAffineTransform.Scale(whirlOutTransform, 0.3f, 0.3f);
+                        oldView.Transform = whirlOutTransform;
+                        break;
+
+                    case AnimationType.WhirlIn3:
+                        oldView.Alpha = 0;
+                        var whirl3OutTransform = CGAffineTransform.MakeRotation((float)(System.Math.PI * 6));
+                        whirl3OutTransform = CGAffineTransform.Scale(whirl3OutTransform, 0.3f, 0.3f);
+                        oldView.Transform = whirl3OutTransform;
+                        break;
+
+                    case AnimationType.None:
+                        break;
+                }
+            };
         }
     }
 }
