@@ -21,6 +21,8 @@ namespace LightNavigation
     public class LightNavigationPage : NavigationPage
     {
         private static AnimationType _defaultTransition = AnimationType.Default;
+        private static int _defaultTransitionInDuration = 0;
+        private static int _defaultTransitionOutDuration = 0;
 
         /// <summary>
         /// Sets the default transition animation type to use when a page doesn't have a specific transition set.
@@ -33,12 +35,33 @@ namespace LightNavigation
         }
 
         /// <summary>
+        /// Sets the global default transition speeds in milliseconds.
+        /// </summary>
+        /// <param name="msIn">Duration for push/in animations in ms. Set to 0 to use platform default.</param>
+        /// <param name="msOut">Duration for pop/out animations in ms. Set to 0 to use platform default.</param>
+        public static void SetDefaultTransitionSpeedMs(int msIn, int msOut)
+        {
+            _defaultTransitionInDuration = msIn;
+            _defaultTransitionOutDuration = msOut;
+        }
+
+        /// <summary>
         /// Gets the current default transition animation type.
         /// </summary>
         public static AnimationType GetDefaultTransition()
         {
             return _defaultTransition;
         }
+
+        /// <summary>
+        /// Gets the global default push/in animation duration in ms.
+        /// </summary>
+        public static int GetDefaultTransitionSpeedInMs() => _defaultTransitionInDuration;
+
+        /// <summary>
+        /// Gets the global default pop/out animation duration in ms.
+        /// </summary>
+        public static int GetDefaultTransitionSpeedOutMs() => _defaultTransitionOutDuration;
 
         /// <summary>
         /// Resolves the effective transition for a page, taking into account:
@@ -105,7 +128,7 @@ namespace LightNavigation
         /// Gets the transition speed (duration in ms) for the specified page.
         /// Returns 0 if no custom speed is set (use default).
         /// </summary>
-        public static int GetTransitionSpeed(BindableObject target)
+        public static int GetTransitionSpeedMs(BindableObject target)
         {
             return (int)target.GetValue(TransitionSpeedProperty);
         }
@@ -114,7 +137,7 @@ namespace LightNavigation
         /// Sets the transition speed (duration in ms) for the specified page.
         /// Set to 0 to use the built-in default speed.
         /// </summary>
-        public static void SetTransitionSpeed(BindableObject target, int value)
+        public static void SetTransitionSpeedMs(BindableObject target, int value)
         {
             target.SetValue(TransitionSpeedProperty, value);
         }

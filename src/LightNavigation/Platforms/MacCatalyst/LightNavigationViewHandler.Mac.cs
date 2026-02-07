@@ -439,10 +439,20 @@ namespace LightNavigation.Platform
         /// </summary>
         private double GetAnimationDuration(MauiPage page, bool isPush)
         {
-            var customSpeed = LightNavigationPage.GetTransitionSpeed(page);
+            var customSpeed = LightNavigationPage.GetTransitionSpeedMs(page);
             if (customSpeed > 0)
             {
                 return customSpeed / 1000.0; // Convert ms to seconds
+            }
+
+            // Check global defaults
+            var globalDefault = isPush 
+                ? LightNavigationPage.GetDefaultTransitionSpeedInMs() 
+                : LightNavigationPage.GetDefaultTransitionSpeedOutMs();
+
+            if (globalDefault > 0)
+            {
+                return globalDefault / 1000.0;
             }
 
             var transition = LightNavigationPage.GetEffectiveTransition(page);

@@ -840,7 +840,7 @@ namespace LightNavigation.Platform
         {
             if (page != null)
             {
-                var customSpeed = LightNavigationPage.GetTransitionSpeed(page);
+                var customSpeed = LightNavigationPage.GetTransitionSpeedMs(page);
                 if (customSpeed > 0)
                 {
                     return customSpeed / 1000.0;

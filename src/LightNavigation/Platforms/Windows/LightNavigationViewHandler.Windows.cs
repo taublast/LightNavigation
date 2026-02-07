@@ -606,12 +606,14 @@ namespace LightNavigation.Platform
                             newView.Visibility = WVisibility.Visible;
 
                             // Get custom speed and easing from page properties
-                            var customSpeed = LightNavigationPage.GetTransitionSpeed(page);
+                            var customSpeed = LightNavigationPage.GetTransitionSpeedMs(page);
                             var customEasing = LightNavigationPage.GetTransitionEasing(page);
 
-                            // Use custom speed if set (> 0), otherwise use default duration
+                            // Use custom speed if set (> 0), otherwise use default duration (global or built-in)
+                            var globalDefault = LightNavigationPage.GetDefaultTransitionSpeedInMs();
                             var duration = customSpeed > 0 ? customSpeed :
-                                          (transition == AnimationType.WhirlIn3 ? WHIRL3_DURATION_MS : ANIMATION_IN_DURATION_MS);
+                                          (globalDefault > 0 ? globalDefault :
+                                          (transition == AnimationType.WhirlIn3 ? WHIRL3_DURATION_MS : ANIMATION_IN_DURATION_MS));
 
                             // Get easing function based on custom easing or use default
                             var easingFunction = GetEasingForTransition(customEasing, isForward: true);
@@ -718,12 +720,14 @@ namespace LightNavigation.Platform
                             oldView.Visibility = WVisibility.Visible;
 
                             // Get custom speed and easing from oldPage properties (page being removed)
-                            var customSpeed = LightNavigationPage.GetTransitionSpeed(oldPage);
+                            var customSpeed = LightNavigationPage.GetTransitionSpeedMs(oldPage);
                             var customEasing = LightNavigationPage.GetTransitionEasing(oldPage);
 
-                            // Use custom speed if set (> 0), otherwise use default duration
+                            // Use custom speed if set (> 0), otherwise use default duration (global or built-in)
+                            var globalDefault = LightNavigationPage.GetDefaultTransitionSpeedOutMs();
                             var duration = customSpeed > 0 ? customSpeed :
-                                          (transition == AnimationType.WhirlIn3 ? WHIRL3_DURATION_MS : ANIMATION_OUT_DURATION_MS);
+                                          (globalDefault > 0 ? globalDefault :
+                                          (transition == AnimationType.WhirlIn3 ? WHIRL3_DURATION_MS : ANIMATION_OUT_DURATION_MS));
 
                             // Get easing function based on custom easing or use default
                             var easingFunction = GetEasingForTransition(customEasing, isForward: false);

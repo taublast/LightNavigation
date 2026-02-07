@@ -593,12 +593,14 @@ namespace LightNavigation.Platform
         private void ApplyPushAnimation(AView newView, AView oldView, FrameLayout container, AnimationType transition, Page page, Action onComplete)
         {
             // Get custom speed and easing from page properties
-            var customSpeed = LightNavigationPage.GetTransitionSpeed(page);
+            var customSpeed = LightNavigationPage.GetTransitionSpeedMs(page);
             var customEasing = LightNavigationPage.GetTransitionEasing(page);
 
-            // Use custom speed if set (> 0), otherwise use default duration
+            // Use custom speed if set (> 0), otherwise use default duration (global or built-in)
+            var globalDefault = LightNavigationPage.GetDefaultTransitionSpeedInMs();
             var duration = customSpeed > 0 ? customSpeed :
-                          (transition == AnimationType.WhirlIn3 ? WHIRL3_DURATION_MS : ANIMATION_IN_DURATION_MS);
+                          (globalDefault > 0 ? globalDefault :
+                          (transition == AnimationType.WhirlIn3 ? WHIRL3_DURATION_MS : ANIMATION_IN_DURATION_MS));
 
             // Create interpolator based on custom easing or use default
             var interpolator = GetInterpolatorForEasing(customEasing, isForward: true);
@@ -741,12 +743,14 @@ namespace LightNavigation.Platform
         private void ApplyPopAnimation(AView oldView, AView newView, FrameLayout container, AnimationType transition, Page page, Action onComplete)
         {
             // Get custom speed and easing from page properties
-            var customSpeed = LightNavigationPage.GetTransitionSpeed(page);
+            var customSpeed = LightNavigationPage.GetTransitionSpeedMs(page);
             var customEasing = LightNavigationPage.GetTransitionEasing(page);
 
-            // Use custom speed if set (> 0), otherwise use default duration
+            // Use custom speed if set (> 0), otherwise use default duration (global or built-in)
+            var globalDefault = LightNavigationPage.GetDefaultTransitionSpeedOutMs();
             var duration = customSpeed > 0 ? customSpeed :
-                          (transition == AnimationType.WhirlIn3 ? WHIRL3_DURATION_MS : ANIMATION_OUT_DURATION_MS);
+                          (globalDefault > 0 ? globalDefault :
+                          (transition == AnimationType.WhirlIn3 ? WHIRL3_DURATION_MS : ANIMATION_OUT_DURATION_MS));
 
             // Create interpolator based on custom easing or use default for pop (backwards)
             var interpolator = GetInterpolatorForEasing(customEasing, isForward: false);

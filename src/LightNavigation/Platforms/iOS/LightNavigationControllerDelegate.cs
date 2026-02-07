@@ -50,10 +50,19 @@ namespace LightNavigation.Platform
 
         private double GetAnimationDuration(Page page, bool isPush, AnimationType transition)
         {
-            var customSpeed = LightNavigationPage.GetTransitionSpeed(page);
+            var customSpeed = LightNavigationPage.GetTransitionSpeedMs(page);
             if (customSpeed > 0)
             {
                 return customSpeed / 1000.0;
+            }
+
+            var globalDefault = isPush 
+                ? LightNavigationPage.GetDefaultTransitionSpeedInMs() 
+                : LightNavigationPage.GetDefaultTransitionSpeedOutMs();
+
+            if (globalDefault > 0)
+            {
+                return globalDefault / 1000.0;
             }
 
             if (transition == AnimationType.WhirlIn3)

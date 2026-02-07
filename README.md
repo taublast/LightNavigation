@@ -1,12 +1,14 @@
 # LightNavigation for .NET MAUI
 
-A subclassed `NavigationPage` bringing custom animated transitions and page lifecycle events. To use for implementing custom navigation scenarios.
-Android, iOS, MacCatalist, Windows, .NET9.
+A subclassed `NavigationPage` bringing custom animated transitions and page lifecycle events. 
+To use for implementing custom navigation scenarios.
+Android, iOS, MacCatalist, Windows, .net9 .net10.
 
 ## 🚀 Features
 
+- ✅ **Easy to adopt** - A subclassed NavigationPage acting as a drop-in replacement to navigate among pages and modals
 - ✅ **Smooth Animations** - Platform-native animations with customizations
-- ✅ **Custom Transitions** - 13 built-in transition types (Fade, Zoom, Whirl, Slide, Parallax, etc.)
+- ✅ **Custom Transitions** - Many built-in transition types (Fade, Zoom, Whirl, Slide, Parallax, etc.)
 - ✅ **Transition Customization** - Control animation speed and easing per page
 - ✅ **Lifecycle Awareness** - `INavigationAware` interface for navigation lifecycle callbacks, dispose resources properly
 - ✅ **Queue-Based Navigation** - Prevents concurrent navigation operations issues
@@ -18,10 +20,12 @@ Solves:
 	* https://github.com/dotnet/maui/issues/11809
 	* https://github.com/dotnet/maui/issues/16621
 * Lack of different transition animations options. 
-* Lifecycle awareness for pages, so they now "know" if they are covered/removed/went on top etc to properly manage data and resources.
+* Lifecycle awareness for pages, now they "know" if they are covered/removed/went on top etc to properly manage data and resources.
 
 ## 🎈 What's New in v1.5.1
 * Fixed iOS transitions and safe insets
+* Added global static `SetDefaultTransitionSpeed` configuration method
+* More docs
 
 ## 📦 Installation
 
@@ -116,15 +120,75 @@ await Navigation.PopAsync();
 // Pop to root
 await Navigation.PopToRootAsync();
 
+// Push modal
+await Navigation.PushModalAsync(new NavigationPage(new LoginPage()));
+
+// Pop modal
+await Navigation.PopModalAsync();
+
 // With animation control
 await Navigation.PushAsync(new DetailPage(), animated: true);
 ```
 
-all methods have optional `bool animated` parameter.
+all methods have optional `bool animated` parameter!
+
+
+### Static Methods
+
+Configure navigation behavior globally or per-page using static methods.
+
+#### Global Configuration
+
+| Method | Description |
+|--------|-------------|
+| `SetDefaultTransition(AnimationType transition)` | Sets the default transition animation type to use when a page doesn't have a specific transition set. |
+| `SetDefaultTransitionSpeedMs(int msIn, int msOut)` | Sets global default transition speeds in milliseconds for push (in) and pop (out). |
+
+#### Per-Page Configuration (Attached Properties)
+
+| Method | Description |
+|--------|-------------|
+| `SetTransition(BindableObject page, AnimationType type)` | Sets the transition animation type for the specified page. |
+| `SetTransitionSpeedMs(BindableObject page, int duration)` | Sets the transition speed (duration in ms) for the specified page. 0 = default. |
+| `SetTransitionEasing(BindableObject page, TransitionEasing easing)` | Sets the transition easing type for the specified page. |
+
+#### Per-Page Helpers
+
+| Method | Description |
+|--------|-------------|
+| `GetTransition(BindableObject page)` | Gets the transition animation type for the specified page. |
+| `GetTransitionSpeedMs(BindableObject page)` | Gets the transition speed for the specified page. |
+| `GetTransitionEasing(BindableObject page)` | Gets the transition easing type for the specified page. |
+
+#### Global Helpers
+
+| Method | Description |
+|--------|-------------|
+| `GetDefaultTransition()` | Gets the current global default transition animation type. |
+| `GetDefaultTransitionSpeedInMs()` | Gets the global default push/in animation duration in ms. |
+| `GetDefaultTransitionSpeedOutMs()` | Gets the global default pop/out animation duration in ms. |
+
+Example:
+
+```csharp
+        //inside MauiProgram.cs
+        LightNavigationPage.SetDefaultTransition(AnimationType.SlideFromBottom);
+        LightNavigationPage.SetDefaultTransitionSpeedMs(300, 200);
+```
 
 ### Navigation Lifecycle Awareness
 
-Implement `INavigationAware` on your pages to receive navigation lifecycle callbacks:
+Implement `INavigationAware` on your pages to receive navigation lifecycle callbacks.
+
+| Method | Description |
+|--------|-------------|
+| `OnPushing()` | Called just before this page is about to be pushed onto the navigation stack. |
+| `OnTopmost()` | Called when this page becomes the topmost page (visible to user). |
+| `OnCovered()` | Called when this page is covered by another page (pushed on top of it). |
+| `OnPopping()` | Called just before this page is about to be popped from the navigation stack. |
+| `OnRemoved()` | Called when this page is removed from the navigation stack. |
+
+Example implementation:
 
 ```csharp
 using LightNavigation;
@@ -132,65 +196,54 @@ using Microsoft.Maui.Controls;
 
 public partial class MyPage : ContentPage, INavigationAware
 {
-    public MyPage()
-    {
-        InitializeComponent();
-    }
+	public MyPage()
+	{
+		InitializeComponent();
+	}
+
+	// Called just before this page is pushed onto the navigation stack
+	public void OnPushing()
+	{
+		System.Diagnostics.Debug.WriteLine("Page is being pushed");
+		// can start preparing data etc..
+	}
+
+	// Called when this page becomes the topmost page (visible to user)
+	public void OnTopmost()
+	{
+		System.Diagnostics.Debug.WriteLine("Page is now topmost");
+		// Refresh data, resume animations, etc.
+	}
+
+	// Called when this page is covered by another page (pushed on top of it)
+	public void OnCovered()
+	{
+		System.Diagnostics.Debug.WriteLine("Page is being covered");
+		// Pause animations, etc.
+	}
+
+	// Called just before this page is popped from the navigation stack
+	public void OnPopping()
+	{
+		System.Diagnostics.Debug.WriteLine("Page is being popped");
+	}
 
 	// Called when this page is removed from the navigation stack
-    public void OnRemoved()
-    {
-        System.Diagnostics.Debug.WriteLine("Page has been removed");
-        // Clean up resources, unsubscribe from events, etc.
+	public void OnRemoved()
+	{
+		System.Diagnostics.Debug.WriteLine("Page has been removed");
 
+		// Clean up resources, unsubscribe from events, etc.
 		this.DisconnectHandlers(); // <-- important to avoid memory leaks
 
 		// Dispose other resources if needed
-    }
-
-    // Called just before this page is pushed onto the navigation stack
-    public void OnPushing()
-    {
-        System.Diagnostics.Debug.WriteLine("Page is being pushed");
-		//can start preparing data etc..
-    }
-
-    // Called when this page becomes the topmost page (visible to user)
-    public void OnTopmost()
-    {
-        System.Diagnostics.Debug.WriteLine("Page is now topmost");
-        // Refresh data, resume animations, etc.
-    }
-
-    // Called just before this page is popped from the navigation stack
-    public void OnPopping()
-    {
-        System.Diagnostics.Debug.WriteLine("Page is being popped");
-    }
-
-
-    // Called when this page is removed from the navigation stack
-    public void OnRemoved()
-    {
-        System.Diagnostics.Debug.WriteLine("Page has been removed");
-        // Clean up resources, unsubscribe from events, etc.
-    }
+	}
 }
 ```
 
 ### Custom Transitions
 
-LightNavigation supports 13 different transition animations:
-
-```csharp
-// Set a global default transition for all pages
-LightNavigationPage.SetDefaultTransition(AnimationType.Fade);
-
-// Set transition for a specific page
-var page = new DetailPage();
-LightNavigationPage.SetTransition(page, AnimationType.SlideFromBottom);
-await Navigation.PushAsync(page);
-```
+LightNavigation supports 13 different transition animations that can be applied globally or per-page.
 
 **Available Transition Types:**
 - `Default` - Platform native transition
@@ -206,19 +259,7 @@ await Navigation.PushAsync(page);
 
 ### Transition Customization
 
-Control animation speed and easing for individual pages:
-
-```csharp
-var page = new DetailPage();
-
-// Custom animation speed (duration in milliseconds, 0 = use default)
-LightNavigationPage.SetTransitionSpeed(page, 500); // 500ms animation
-
-// Custom easing/interpolation (Default = use built-in)
-LightNavigationPage.SetTransitionEasing(page, TransitionEasing.Linear);
-
-await Navigation.PushAsync(page);
-```
+Control animation speed and easing for individual pages using the attached properties or static methods (see below).
 
 **Available Easing Types:**
 - `Default` - Platform default (Decelerate for push, Accelerate for pop)
@@ -241,7 +282,6 @@ await Navigation.PushAsync(page);
     <!-- Page content -->
 </ContentPage>
 ```
-
 
 
 ## 🎨 How It Works
@@ -276,7 +316,7 @@ await Navigation.PushAsync(page);
 - **Pop Animation**: 100ms (Android), 150ms (Windows), 300ms (iOS)
 - **WhirlIn3 Animation**: 400ms (all platforms) - Extended duration for dramatic 3-rotation effect
 
-All durations can be overridden per-page using `LightNavigationPage.SetTransitionSpeed()`.
+All durations can be overridden per-page using `LightNavigationPage.SetTransitionSpeedMs()`.
 
 ### Navigation Queue
 
