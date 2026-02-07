@@ -438,6 +438,12 @@ namespace LightNavigation.Platform
                     return tcs.Task;
                 }
 
+                //Make page fullscreen if needed
+                //if (!page.On<iOS>().UsingSafeArea())
+                //{
+                //    page.On<iOS>().SetSafeAreaInsets(new Thickness(0.0));
+                //}
+
                 // Create view and wrap in LightPageViewController
                 var pageView = page.ToPlatform(MauiContext);
                 

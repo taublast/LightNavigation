@@ -298,6 +298,8 @@ All platforms implement a queue-based navigation system using:
 | Lifecycle callbacks | ❌ Limited | ✅ Full `INavigationAware` |
 | Concurrent navigation safety | ❌ Can crash | ✅ Protected |
 
+---
+
 ## 📄 License
 
 MIT License - See LICENSE file for details
@@ -309,17 +311,9 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## 📞 Support
 
 If you encounter any issues or have questions:
-- Open an issue on GitHub
-- Check the documentation
-- Review the sample code
-
-## 🎯 Roadmap
-
-- [x] Custom transition animations (13 types implemented)
-- [x] Transition speed and easing customization
-- [x] iOS/Catalyst transition implementations (all 13 transitions + speed/easing)
-- [ ] Gesture-based navigation
-- [ ] Performance profiling tools
+- Check the documentation  
+- Review the included LightNavigation.TestApp for usage examples  
+- If an issue is reproducible inside LightNavigation.TestApp please open an issue on GitHub  
 
 ---
 
