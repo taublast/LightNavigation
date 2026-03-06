@@ -106,7 +106,7 @@ namespace LightNavigation.Platform
                     else
                     {
                         rotationAnimation.From = NSNumber.FromDouble(0);
-                        rotationAnimation.To = NSNumber.FromDouble(Math.PI * 6); // 1080 degrees
+                        rotationAnimation.To = NSNumber.FromDouble(-Math.PI * 6); // -1080 degrees (counter-clockwise, reverse of push)
                     }
 
                     rotationAnimation.Duration = _duration;
@@ -270,21 +270,27 @@ namespace LightNavigation.Platform
             {
             case AnimationType.SlideFromRight:
             case AnimationType.Default:
+            oldView.Alpha = 0;
             oldView.Transform = CGAffineTransform.MakeTranslation(bounds.Width, 0);
             break;
             case AnimationType.SlideFromLeft:
+            oldView.Alpha = 0;
             oldView.Transform = CGAffineTransform.MakeTranslation(-bounds.Width, 0);
             break;
             case AnimationType.SlideFromBottom:
+            oldView.Alpha = 0;
             oldView.Transform = CGAffineTransform.MakeTranslation(0, bounds.Height);
             break;
             case AnimationType.SlideFromTop:
+            oldView.Alpha = 0;
             oldView.Transform = CGAffineTransform.MakeTranslation(0, -bounds.Height);
             break;
             case AnimationType.ParallaxSlideFromRight:
+            oldView.Alpha = 0;
             oldView.Transform = CGAffineTransform.MakeTranslation(bounds.Width, 0);
             break;
             case AnimationType.ParallaxSlideFromLeft:
+            oldView.Alpha = 0;
             oldView.Transform = CGAffineTransform.MakeTranslation(-bounds.Width, 0);
             break;
             case AnimationType.Fade:

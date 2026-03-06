@@ -490,6 +490,12 @@ namespace LightNavigation.Platform
             view.ScaleY = 1;
         }
 
+        private static Action WhenBothComplete(Action onComplete)
+        {
+            int remaining = 2;
+            return () => { if (Interlocked.Decrement(ref remaining) == 0) onComplete(); };
+        }
+
         /// <summary>
         /// Gets the appropriate Android interpolator for the specified easing type.
         /// </summary>
@@ -525,25 +531,27 @@ namespace LightNavigation.Platform
             {
                 case AnimationType.Default:
                 case AnimationType.SlideFromRight:
+                    newView.TranslationX = container.Width;
+                    break;
+
                 case AnimationType.ParallaxSlideFromRight:
-                    newView.Alpha = 0.3f;
-                    newView.TranslationX = container.Width * 0.15f;
+                    newView.TranslationX = container.Width;
                     break;
 
                 case AnimationType.SlideFromLeft:
+                    newView.TranslationX = -container.Width;
+                    break;
+
                 case AnimationType.ParallaxSlideFromLeft:
-                    newView.Alpha = 0.3f;
-                    newView.TranslationX = -container.Width * 0.15f;
+                    newView.TranslationX = -container.Width;
                     break;
 
                 case AnimationType.SlideFromBottom:
-                    newView.Alpha = 0.3f;
-                    newView.TranslationY = container.Height * 0.15f;
+                    newView.TranslationY = container.Height;
                     break;
 
                 case AnimationType.SlideFromTop:
-                    newView.Alpha = 0.3f;
-                    newView.TranslationY = -container.Height * 0.15f;
+                    newView.TranslationY = -container.Height;
                     break;
 
                 case AnimationType.Fade:
@@ -607,8 +615,7 @@ namespace LightNavigation.Platform
 
             var animator = newView.Animate()
                 .SetDuration(duration)
-                .SetInterpolator(interpolator)
-                .WithEndAction(new Java.Lang.Runnable(onComplete));
+                .SetInterpolator(interpolator);
 
             switch (transition)
             {
@@ -617,39 +624,53 @@ namespace LightNavigation.Platform
                 case AnimationType.SlideFromLeft:
                 case AnimationType.SlideFromBottom:
                 case AnimationType.SlideFromTop:
-                    animator.Alpha(1f).TranslationX(0f).TranslationY(0f);
+                    animator.TranslationX(0f).TranslationY(0f)
+                            .WithEndAction(new Java.Lang.Runnable(onComplete));
                     break;
 
                 case AnimationType.ParallaxSlideFromRight:
-                    animator.Alpha(1f).TranslationX(0f);
+                {
+                    var bothDone = WhenBothComplete(onComplete);
+                    animator.Alpha(1f).TranslationX(0f)
+                            .WithEndAction(new Java.Lang.Runnable(bothDone));
                     oldView.Animate()
                         .TranslationX(-container.Width * 0.3f)
                         .SetDuration(duration)
                         .SetInterpolator(interpolator)
+                        .WithEndAction(new Java.Lang.Runnable(bothDone))
                         .Start();
                     break;
+                }
 
                 case AnimationType.ParallaxSlideFromLeft:
-                    animator.Alpha(1f).TranslationX(0f);
+                {
+                    var bothDone = WhenBothComplete(onComplete);
+                    animator.Alpha(1f).TranslationX(0f)
+                            .WithEndAction(new Java.Lang.Runnable(bothDone));
                     oldView.Animate()
                         .TranslationX(container.Width * 0.3f)
                         .SetDuration(duration)
                         .SetInterpolator(interpolator)
+                        .WithEndAction(new Java.Lang.Runnable(bothDone))
                         .Start();
                     break;
+                }
 
                 case AnimationType.Fade:
-                    animator.Alpha(1f);
+                    animator.Alpha(1f)
+                            .WithEndAction(new Java.Lang.Runnable(onComplete));
                     break;
 
                 case AnimationType.ZoomIn:
                 case AnimationType.ZoomOut:
-                    animator.Alpha(1f).ScaleX(1f).ScaleY(1f);
+                    animator.Alpha(1f).ScaleX(1f).ScaleY(1f)
+                            .WithEndAction(new Java.Lang.Runnable(onComplete));
                     break;
 
                 case AnimationType.WhirlIn:
                 case AnimationType.WhirlIn3:
-                    animator.Alpha(1f).ScaleX(1f).ScaleY(1f).Rotation(0f);
+                    animator.Alpha(1f).ScaleX(1f).ScaleY(1f).Rotation(0f)
+                            .WithEndAction(new Java.Lang.Runnable(onComplete));
                     break;
             }
 
@@ -677,23 +698,12 @@ namespace LightNavigation.Platform
             // Position newView based on transition (it's the page we're returning to)
             switch (transition)
             {
-                case AnimationType.Default:
-                case AnimationType.SlideFromRight:
                 case AnimationType.ParallaxSlideFromRight:
                     newView.TranslationX = -container.Width * 0.3f;
                     break;
 
-                case AnimationType.SlideFromLeft:
                 case AnimationType.ParallaxSlideFromLeft:
                     newView.TranslationX = container.Width * 0.3f;
-                    break;
-
-                case AnimationType.SlideFromBottom:
-                    newView.TranslationY = -container.Height * 0.3f;
-                    break;
-
-                case AnimationType.SlideFromTop:
-                    newView.TranslationY = container.Height * 0.3f;
                     break;
 
                 case AnimationType.Fade:
@@ -719,21 +729,10 @@ namespace LightNavigation.Platform
                     break;
 
                 case AnimationType.WhirlIn:
-                    newView.ScaleX = 1.3f;
-                    newView.ScaleY = 1.3f;
-                    newView.Rotation = 180f; // Rotate 180 degrees clockwise (reverse of push)
-                    newView.Alpha = 0.5f;
-                    // Set pivot to center for rotation and zoom
-                    newView.PivotX = container.Width / 2f;
-                    newView.PivotY = container.Height / 2f;
-                    break;
-
                 case AnimationType.WhirlIn3:
-                    newView.ScaleX = 1.3f;
-                    newView.ScaleY = 1.3f;
-                    newView.Rotation = 1080f; // Rotate 3 full rotations clockwise (reverse of push)
+                    newView.ScaleX = 1.1f;
+                    newView.ScaleY = 1.1f;
                     newView.Alpha = 0.5f;
-                    // Set pivot to center for rotation and zoom
                     newView.PivotX = container.Width / 2f;
                     newView.PivotY = container.Height / 2f;
                     break;
@@ -765,37 +764,48 @@ namespace LightNavigation.Platform
                 newView.PivotY = container.Height / 2f;
             }
 
+            var bothDone = WhenBothComplete(onComplete);
+
             var oldAnimator = oldView.Animate()
                 .SetDuration(duration)
                 .SetInterpolator(interpolator)
-                .WithEndAction(new Java.Lang.Runnable(onComplete));
+                .WithEndAction(new Java.Lang.Runnable(bothDone));
 
             var newAnimator = newView.Animate()
                 .SetDuration(duration)
-                .SetInterpolator(interpolator);
+                .SetInterpolator(interpolator)
+                .WithEndAction(new Java.Lang.Runnable(bothDone));
 
             switch (transition)
             {
                 case AnimationType.Default:
                 case AnimationType.SlideFromRight:
+                    oldAnimator.TranslationX(container.Width).Alpha(0f);
+                    newAnimator.TranslationX(0f);
+                    break;
+
                 case AnimationType.ParallaxSlideFromRight:
-                    oldAnimator.Alpha(0f).TranslationX(container.Width * 0.3f);
+                    oldAnimator.TranslationX(container.Width).Alpha(0f);
                     newAnimator.TranslationX(0f);
                     break;
 
                 case AnimationType.SlideFromLeft:
+                    oldAnimator.TranslationX(-container.Width).Alpha(0f);
+                    newAnimator.TranslationX(0f);
+                    break;
+
                 case AnimationType.ParallaxSlideFromLeft:
-                    oldAnimator.Alpha(0f).TranslationX(-container.Width * 0.3f);
+                    oldAnimator.TranslationX(-container.Width).Alpha(0f);
                     newAnimator.TranslationX(0f);
                     break;
 
                 case AnimationType.SlideFromBottom:
-                    oldAnimator.Alpha(0f).TranslationY(container.Height * 0.3f);
+                    oldAnimator.TranslationY(container.Height).Alpha(0f);
                     newAnimator.TranslationY(0f);
                     break;
 
                 case AnimationType.SlideFromTop:
-                    oldAnimator.Alpha(0f).TranslationY(-container.Height * 0.3f);
+                    oldAnimator.TranslationY(-container.Height).Alpha(0f);
                     newAnimator.TranslationY(0f);
                     break;
 

@@ -282,22 +282,18 @@ namespace LightNavigation.Platform
             {
                 case AnimationType.Default:
                 case AnimationType.SlideFromRight:
-                    storyboard.Children.Add(CreateDoubleAnimation(newView, "Opacity", null, 1.0, duration, easingFunction));
                     storyboard.Children.Add(CreateDoubleAnimation(newTransform, "TranslateX", null, 0, duration, easingFunction));
                     break;
 
                 case AnimationType.SlideFromLeft:
-                    storyboard.Children.Add(CreateDoubleAnimation(newView, "Opacity", null, 1.0, duration, easingFunction));
                     storyboard.Children.Add(CreateDoubleAnimation(newTransform, "TranslateX", null, 0, duration, easingFunction));
                     break;
 
                 case AnimationType.SlideFromBottom:
-                    storyboard.Children.Add(CreateDoubleAnimation(newView, "Opacity", null, 1.0, duration, easingFunction));
                     storyboard.Children.Add(CreateDoubleAnimation(newTransform, "TranslateY", null, 0, duration, easingFunction));
                     break;
 
                 case AnimationType.SlideFromTop:
-                    storyboard.Children.Add(CreateDoubleAnimation(newView, "Opacity", null, 1.0, duration, easingFunction));
                     storyboard.Children.Add(CreateDoubleAnimation(newTransform, "TranslateY", null, 0, duration, easingFunction));
                     break;
 
@@ -375,25 +371,41 @@ namespace LightNavigation.Platform
             {
                 case AnimationType.Default:
                 case AnimationType.SlideFromRight:
-                case AnimationType.ParallaxSlideFromRight:
                     storyboard.Children.Add(CreateDoubleAnimation(oldView, "Opacity", null, 0.0, duration, easingFunction));
-                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "TranslateX", null, container.ActualWidth * 0.3, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "TranslateX", null, container.ActualWidth, duration, easingFunction));
                     break;
 
-                case AnimationType.SlideFromLeft:
-                case AnimationType.ParallaxSlideFromLeft:
+                case AnimationType.ParallaxSlideFromRight:
+                {
+                    var newTransform = (Microsoft.UI.Xaml.Media.CompositeTransform)newView.RenderTransform;
                     storyboard.Children.Add(CreateDoubleAnimation(oldView, "Opacity", null, 0.0, duration, easingFunction));
-                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "TranslateX", null, -container.ActualWidth * 0.3, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "TranslateX", null, container.ActualWidth, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(newTransform, "TranslateX", null, 0, duration, easingFunction));
                     break;
+                }
+
+                case AnimationType.SlideFromLeft:
+                    storyboard.Children.Add(CreateDoubleAnimation(oldView, "Opacity", null, 0.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "TranslateX", null, -container.ActualWidth, duration, easingFunction));
+                    break;
+
+                case AnimationType.ParallaxSlideFromLeft:
+                {
+                    var newTransform = (Microsoft.UI.Xaml.Media.CompositeTransform)newView.RenderTransform;
+                    storyboard.Children.Add(CreateDoubleAnimation(oldView, "Opacity", null, 0.0, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "TranslateX", null, -container.ActualWidth, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(newTransform, "TranslateX", null, 0, duration, easingFunction));
+                    break;
+                }
 
                 case AnimationType.SlideFromBottom:
                     storyboard.Children.Add(CreateDoubleAnimation(oldView, "Opacity", null, 0.0, duration, easingFunction));
-                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "TranslateY", null, container.ActualHeight * 0.3, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "TranslateY", null, container.ActualHeight, duration, easingFunction));
                     break;
 
                 case AnimationType.SlideFromTop:
                     storyboard.Children.Add(CreateDoubleAnimation(oldView, "Opacity", null, 0.0, duration, easingFunction));
-                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "TranslateY", null, -container.ActualHeight * 0.3, duration, easingFunction));
+                    storyboard.Children.Add(CreateDoubleAnimation(oldTransform, "TranslateY", null, -container.ActualHeight, duration, easingFunction));
                     break;
 
                 case AnimationType.Fade:
@@ -444,25 +456,27 @@ namespace LightNavigation.Platform
             {
                 case AnimationType.Default:
                 case AnimationType.SlideFromRight:
+                    transform.TranslateX = container.ActualWidth;
+                    break;
+
                 case AnimationType.ParallaxSlideFromRight:
-                    newView.Opacity = 0.3;
-                    transform.TranslateX = container.ActualWidth * 0.15;
+                    transform.TranslateX = container.ActualWidth;
                     break;
 
                 case AnimationType.SlideFromLeft:
+                    transform.TranslateX = -container.ActualWidth;
+                    break;
+
                 case AnimationType.ParallaxSlideFromLeft:
-                    newView.Opacity = 0.3;
-                    transform.TranslateX = -container.ActualWidth * 0.15;
+                    transform.TranslateX = -container.ActualWidth;
                     break;
 
                 case AnimationType.SlideFromBottom:
-                    newView.Opacity = 0.3;
-                    transform.TranslateY = container.ActualHeight * 0.15;
+                    transform.TranslateY = container.ActualHeight;
                     break;
 
                 case AnimationType.SlideFromTop:
-                    newView.Opacity = 0.3;
-                    transform.TranslateY = -container.ActualHeight * 0.15;
+                    transform.TranslateY = -container.ActualHeight;
                     break;
 
                 case AnimationType.Fade:
@@ -701,6 +715,18 @@ namespace LightNavigation.Platform
                     // ALWAYS make newView visible and reset its transform (it was hidden when we pushed on top)
                     ResetViewTransform(newView);
                     newView.Visibility = WVisibility.Visible;
+
+                    // Apply parallax start offset for newView before animation
+                    if (animate && transition == AnimationType.ParallaxSlideFromRight)
+                    {
+                        var t = (Microsoft.UI.Xaml.Media.CompositeTransform)newView.RenderTransform;
+                        t.TranslateX = -container.ActualWidth * 0.3;
+                    }
+                    else if (animate && transition == AnimationType.ParallaxSlideFromLeft)
+                    {
+                        var t = (Microsoft.UI.Xaml.Media.CompositeTransform)newView.RenderTransform;
+                        t.TranslateX = container.ActualWidth * 0.3;
+                    }
 
                     if (animate && transition != AnimationType.None)
                     {
