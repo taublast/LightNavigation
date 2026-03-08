@@ -17,7 +17,14 @@ Android, iOS, MacCatalist, Windows, .net9 .net10.
 * **Animations fixes** for animations consistency across platforms.
 * **.NET 10 support** thanks to [yurkinh](https://github.com/yurkinh) for the kick.
 
+---
+
+
+https://github.com/user-attachments/assets/f6dc2942-540b-45b7-ba7d-4bee0b79d537
+
+
 ## 📦 Installation
+
 
 ### NuGet Package Manager
 
