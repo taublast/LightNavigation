@@ -33,7 +33,7 @@ public partial class DetailPage : ContentPage
         // Assign a random pastel background color
         var random = new Random(pageNumber); // Use pageNumber as seed for consistent colors per page number
         var backgroundColor = PastelColors[random.Next(PastelColors.Length)];
-        this.BackgroundColor = backgroundColor;
+        MainScroll.BackgroundColor = backgroundColor;
 
         TitleLabel.Text = $"📄 Detail Page #{pageNumber}";
         PageNumberLabel.Text = $"Page #{pageNumber}";

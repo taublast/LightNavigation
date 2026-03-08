@@ -3,12 +3,12 @@
     x:Class="LightNavigation.TestApp.Pages.DetailPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    Title="Detail Page"
+    Title="Pushed Page"
     NavigationPage.HasNavigationBar="True"
     NavigationPage.BarTextColor="Black"
-    Background="Red">
+    BackgroundColor="DarkSlateGrey">
 
-    <ScrollView BackgroundColor="Transparent">
+    <ScrollView BackgroundColor="Transparent" x:Name="MainScroll">
         <VerticalStackLayout
             Padding="30,20"
             BackgroundColor="Transparent"
