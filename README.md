@@ -4,28 +4,18 @@ A subclassed `NavigationPage` bringing custom animated transitions and page life
 To use for implementing custom navigation scenarios.
 Android, iOS, MacCatalist, Windows, .net9 .net10.
 
-## 🚀 Features
+## ✨ Features
 
-- ✅ **Easy to adopt** - A subclassed NavigationPage acting as a drop-in replacement to navigate among pages and modals
-- ✅ **Smooth Animations** - Platform-native animations with customizations
-- ✅ **Custom Transitions** - Many built-in transition types (Fade, Zoom, Whirl, Slide, Parallax, etc.)
-- ✅ **Transition Customization** - Control animation speed and easing per page
-- ✅ **Lifecycle Awareness** - `INavigationAware` interface for navigation lifecycle callbacks, dispose resources properly
-- ✅ **Queue-Based Navigation** - Prevents concurrent navigation operations issues
-- ✅ **Zero Dependencies** - No third-party libraries required
+- **Easy to use** - A subclassed NavigationPage acting as a drop-in replacement to navigate among pages and modals
+- **Smooth Transitions** - Platform-native animations (Fade, Zoom, Whirl, Slide, Parallax, etc.)
+- **Transition Customization** - Control animation speed and easing per page
+- **Lifecycle Callbacks** - Pages now "know" when they are covered/removed/went on top for managing data and resources
+- **Queue-Based Navigation** - Prevents concurrent navigation operations issues
+- **Zero Dependencies** - No third-party libraries required
 
-Solves:
-
-* Transition issues in standard `NavigationPage` such as:
-	* https://github.com/dotnet/maui/issues/11809
-	* https://github.com/dotnet/maui/issues/16621
-* Lack of different transition animations options. 
-* Lifecycle awareness for pages, now they "know" if they are covered/removed/went on top etc to properly manage data and resources.
-
-## 🎈 What's New in v1.5.1
-* Fixed iOS transitions and safe insets
-* Added global static `SetDefaultTransitionSpeed` configuration method
-* More docs
+## What's New 1.10.1.1
+* **Animations fixes** for animations consistency across platforms.
+* **.NET 10 support** thanks to [yurkinh](https://github.com/yurkinh) for the kick.
 
 ## 📦 Installation
 
