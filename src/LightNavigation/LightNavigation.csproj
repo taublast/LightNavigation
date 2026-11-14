@@ -18,7 +18,7 @@
     <Authors>Nick Kovalsky aka AppoMobi and contributors</Authors>
     <PackageTags>maui navigation navigationpage transitions</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/yourusername/LightNavigation</RepositoryUrl>
+    <RepositoryUrl>https://github.com/taublast/LightNavigation</RepositoryUrl>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IncludeSymbols>true</IncludeSymbols>
