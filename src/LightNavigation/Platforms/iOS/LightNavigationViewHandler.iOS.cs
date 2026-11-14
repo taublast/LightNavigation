@@ -516,17 +516,15 @@ namespace LightNavigation.Platform
                         // is still running (100ms delay < 300ms animation), causing the pop's manual
                         // animation to fight with iOS's still-running push animation (visual chaos).
                         var coordinator = viewController.GetTransitionCoordinator();
-                        if (coordinator != null)
-                        {
-                            coordinator.AnimateAlongsideTransition((context) => { }, (context) =>
+                        // false = the coordinator will not call the completion: finish now, a never-completed
+                        // task blocks every later navigation
+                        if (coordinator == null || !coordinator.AnimateAlongsideTransition((context) => { }, (context) =>
                             {
                                 Debug.WriteLine($"{TAG} ✅ Push animation complete");
                                 tcs.TrySetResult(true);
-                            });
-                        }
-                        else
+                            }))
                         {
-                            tcs.SetResult(true);
+                            tcs.TrySetResult(true);
                         }
                     }
                     else
@@ -579,19 +577,16 @@ namespace LightNavigation.Platform
 
                     var newTopVC = _navigationController.TopViewController;
                     var coordinator = newTopVC?.GetTransitionCoordinator();
-                    if (coordinator != null)
-                    {
-                        coordinator.AnimateAlongsideTransition((ctx) => { }, (ctx) =>
+                    // false = the coordinator will not call the completion: finish now
+                    if (coordinator == null || !coordinator.AnimateAlongsideTransition((ctx) => { }, (ctx) =>
                         {
                             Debug.WriteLine($"{TAG} ✅ Pop animation complete");
                             PopCleanupStacks(oldAware, newAware);
                             tcs.TrySetResult(true);
-                        });
-                    }
-                    else
+                        }))
                     {
                         PopCleanupStacks(oldAware, newAware);
-                        tcs.SetResult(true);
+                        tcs.TrySetResult(true);
                     }
                 }
                 else
@@ -666,19 +661,16 @@ namespace LightNavigation.Platform
 
                     var newTopVC = _navigationController.TopViewController;
                     var coordinator = newTopVC?.GetTransitionCoordinator();
-                    if (coordinator != null)
-                    {
-                        coordinator.AnimateAlongsideTransition((ctx) => { }, (ctx) =>
+                    // false = the coordinator will not call the completion: finish now
+                    if (coordinator == null || !coordinator.AnimateAlongsideTransition((ctx) => { }, (ctx) =>
                         {
                             Debug.WriteLine($"{TAG} ✅ PopToRoot animation complete");
                             PopToRootCleanupStacks(rootViewController, rootPage, removedViewControllers, removedPages);
                             tcs.TrySetResult(true);
-                        });
-                    }
-                    else
+                        }))
                     {
                         PopToRootCleanupStacks(rootViewController, rootPage, removedViewControllers, removedPages);
-                        tcs.SetResult(true);
+                        tcs.TrySetResult(true);
                     }
                 }
                 else

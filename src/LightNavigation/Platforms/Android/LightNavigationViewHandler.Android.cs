@@ -22,6 +22,9 @@ namespace LightNavigation.Platform
     {
         private const string TAG = "[LightNavigation_Android]";
         private readonly List<Page> _viewStack = new();
+        // the native view each page was shown with: a page's Handler can be disconnected by the app
+        // while the page is still on the stack, and its view must still be found to pop it
+        private readonly Dictionary<Page, AView> _platformViews = new();
         private Page? _currentView;
 
         // Animation settings
@@ -115,6 +118,7 @@ namespace LightNavigation.Platform
             platformView.RemoveAllViews();
             _navigationQueue.Clear();
             _viewStack.Clear();
+            _platformViews.Clear();
             _currentView = null;
             _navigationSemaphore?.Dispose();
 
@@ -216,9 +220,11 @@ namespace LightNavigation.Platform
 
                 Debug.WriteLine($"{TAG} ✅ Created Android view for page");
 
+                _platformViews[page] = newView;
+
                 var container = PlatformView;
                 var oldPage = _currentView;
-                var oldView = _currentView?.Handler?.PlatformView as AView;
+                var oldView = _currentView != null ? GetPlatformView(_currentView) : null;
 
                 // CRITICAL: Ensure view is removed from previous parent before adding
                 var parent = newView.Parent as ViewGroup;
@@ -276,13 +282,19 @@ namespace LightNavigation.Platform
                             // Animate based on transition type
                             ApplyPushAnimation(newView, oldView, container, transition, page, () =>
                             {
-                                // AFTER animation completes, hide old view
-                                ResetViewState(newView);
-                                oldView.Visibility = ViewStates.Invisible;
+                                try
+                                {
+                                    // AFTER animation completes, hide old view
+                                    ResetViewState(newView);
+                                    oldView.Visibility = ViewStates.Invisible;
 
-                                newAware?.OnTopmost();
-                                oldAware?.OnCovered();
-                                tcs.SetResult(true);
+                                    newAware?.OnTopmost();
+                                    oldAware?.OnCovered();
+                                }
+                                finally
+                                {
+                                    tcs.TrySetResult(true);
+                                }
                             });
                         }
                         else
@@ -327,9 +339,9 @@ namespace LightNavigation.Platform
                 if (_viewStack.Count > 1)
                 {
                     var page = _viewStack[_viewStack.Count - 2];
-                    var newView = page.Handler!.PlatformView as AView;
+                    var newView = GetPlatformView(page);
                     var oldPage = _viewStack.Last();
-                    var oldView = oldPage.Handler!.PlatformView as AView;
+                    var oldView = GetPlatformView(oldPage);
 
                     var newAware = page as INavigationAware;
                     var oldAware = oldPage as INavigationAware;
@@ -344,9 +356,25 @@ namespace LightNavigation.Platform
 
                     Debug.WriteLine($"{TAG} OLDVIEW visibility: {oldView?.Visibility}");
 
-                    newView?.Post(() =>
+                    if (newView == null)
                     {
-                        if (animate && transition != AnimationType.None && oldView != null && newView != null)
+                        // nothing to post on: finish now, a never-completed task blocks every later navigation
+                        if (oldView != null)
+                        {
+                            container.RemoveView(oldView);
+                        }
+                        _currentView = page;
+                        _viewStack.Remove(oldPage);
+                        _platformViews.Remove(oldPage);
+                        oldAware?.OnRemoved();
+                        newAware?.OnTopmost();
+                        tcs.TrySetResult(true);
+                        return tcs.Task;
+                    }
+
+                    newView.Post(() =>
+                    {
+                        if (animate && transition != AnimationType.None && oldView != null)
                         {
                             Debug.WriteLine($"{TAG} 🎬 Starting pop animation - {transition}");
 
@@ -354,18 +382,25 @@ namespace LightNavigation.Platform
                             // Use oldPage properties since that's the page being removed
                             ApplyPopAnimation(oldView, newView, container, transition, oldPage, () =>
                             {
-                                container.RemoveView(oldView);
-                                ResetViewState(newView);
+                                try
+                                {
+                                    container.RemoveView(oldView);
+                                    ResetViewState(newView);
 
-                                // Update stacks AFTER animation completes
-                                _currentView = page;
-                                _viewStack.Remove(oldPage);
+                                    // Update stacks AFTER animation completes
+                                    _currentView = page;
+                                    _viewStack.Remove(oldPage);
+                                    _platformViews.Remove(oldPage);
 
-                                oldAware?.OnRemoved();
-                                newAware?.OnTopmost();
-                                Debug.WriteLine($"{TAG} 📊 Stack count after pop: {_viewStack.Count}");
-                                Debug.WriteLine($"{TAG} ✅ Pop animation complete!");
-                                tcs.SetResult(true);
+                                    oldAware?.OnRemoved();
+                                    newAware?.OnTopmost();
+                                    Debug.WriteLine($"{TAG} 📊 Stack count after pop: {_viewStack.Count}");
+                                    Debug.WriteLine($"{TAG} ✅ Pop animation complete!");
+                                }
+                                finally
+                                {
+                                    tcs.TrySetResult(true);
+                                }
                             });
                         }
                         else
@@ -391,6 +426,7 @@ namespace LightNavigation.Platform
                             // Update stacks immediately (no animation)
                             _currentView = page;
                             _viewStack.Remove(oldPage);
+                            _platformViews.Remove(oldPage);
 
                             oldAware?.OnRemoved();
                             newAware?.OnTopmost();
@@ -427,7 +463,7 @@ namespace LightNavigation.Platform
 
                 // Get the root view (first item in stack)
                 var page = _viewStack.First();
-                var rootView = page.Handler!.PlatformView as AView;
+                var rootView = GetPlatformView(page);
 
                 Debug.WriteLine($"{TAG} 🏠 PopToRoot - showing root view");
 
@@ -440,11 +476,12 @@ namespace LightNavigation.Platform
                 // Remove all other views from container
                 var viewsToRemove = _viewStack.Skip(1).ToList();
 
-                rootView?.Post(() =>
+                void RemoveOthers()
                 {
                     foreach (var oldPage in viewsToRemove)
                     {
-                        var oldView = oldPage.Handler?.PlatformView as AView;
+                        var oldView = GetPlatformView(oldPage);
+                        _platformViews.Remove(oldPage);
                         if (oldView != null)
                         {
                             container.RemoveView(oldView);
@@ -455,8 +492,18 @@ namespace LightNavigation.Platform
                         }
                     }
 
-                    tcs.SetResult(true);
-                });
+                    tcs.TrySetResult(true);
+                }
+
+                if (rootView != null)
+                {
+                    rootView.Post(RemoveOthers);
+                }
+                else
+                {
+                    // nothing to post on: finish now, a never-completed task blocks every later navigation
+                    RemoveOthers();
+                }
 
                 // Clear stack except root
                 _viewStack.Clear();
@@ -481,6 +528,11 @@ namespace LightNavigation.Platform
 
         #region Animation Helpers
 
+        private AView? GetPlatformView(Page page)
+        {
+            return _platformViews.TryGetValue(page, out var view) ? view : page.Handler?.PlatformView as AView;
+        }
+
         private void ResetViewState(AView view)
         {
             view.TranslationX = 0;
@@ -494,6 +546,37 @@ namespace LightNavigation.Platform
         {
             int remaining = 2;
             return () => { if (Interlocked.Decrement(ref remaining) == 0) onComplete(); };
+        }
+
+        /// <summary>
+        /// Runs once when the view's animation finishes, also when it is cancelled: WithEndAction is skipped on
+        /// cancel, which left the navigation task (and every queued navigation after it) waiting forever.
+        /// </summary>
+        private sealed class EndListener : Android.Animation.AnimatorListenerAdapter
+        {
+            private readonly AView _view;
+            private Action? _onEnd;
+
+            public EndListener(AView view, Action onEnd)
+            {
+                _view = view;
+                _onEnd = onEnd;
+            }
+
+            public override void OnAnimationEnd(Android.Animation.Animator? animation) => Fire();
+
+            public override void OnAnimationCancel(Android.Animation.Animator? animation) => Fire();
+
+            private void Fire()
+            {
+                var onEnd = _onEnd;
+                if (onEnd == null)
+                    return;
+                _onEnd = null;
+                // the view keeps one animator: do not leave this listener on its next animation
+                _view.Animate()?.SetListener(null);
+                onEnd();
+            }
         }
 
         /// <summary>
@@ -625,19 +708,19 @@ namespace LightNavigation.Platform
                 case AnimationType.SlideFromBottom:
                 case AnimationType.SlideFromTop:
                     animator.TranslationX(0f).TranslationY(0f)
-                            .WithEndAction(new Java.Lang.Runnable(onComplete));
+                            .SetListener(new EndListener(newView, onComplete));
                     break;
 
                 case AnimationType.ParallaxSlideFromRight:
                 {
                     var bothDone = WhenBothComplete(onComplete);
                     animator.Alpha(1f).TranslationX(0f)
-                            .WithEndAction(new Java.Lang.Runnable(bothDone));
+                            .SetListener(new EndListener(newView, bothDone));
                     oldView.Animate()
                         .TranslationX(-container.Width * 0.3f)
                         .SetDuration(duration)
                         .SetInterpolator(interpolator)
-                        .WithEndAction(new Java.Lang.Runnable(bothDone))
+                        .SetListener(new EndListener(oldView, bothDone))
                         .Start();
                     break;
                 }
@@ -646,31 +729,31 @@ namespace LightNavigation.Platform
                 {
                     var bothDone = WhenBothComplete(onComplete);
                     animator.Alpha(1f).TranslationX(0f)
-                            .WithEndAction(new Java.Lang.Runnable(bothDone));
+                            .SetListener(new EndListener(newView, bothDone));
                     oldView.Animate()
                         .TranslationX(container.Width * 0.3f)
                         .SetDuration(duration)
                         .SetInterpolator(interpolator)
-                        .WithEndAction(new Java.Lang.Runnable(bothDone))
+                        .SetListener(new EndListener(oldView, bothDone))
                         .Start();
                     break;
                 }
 
                 case AnimationType.Fade:
                     animator.Alpha(1f)
-                            .WithEndAction(new Java.Lang.Runnable(onComplete));
+                            .SetListener(new EndListener(newView, onComplete));
                     break;
 
                 case AnimationType.ZoomIn:
                 case AnimationType.ZoomOut:
                     animator.Alpha(1f).ScaleX(1f).ScaleY(1f)
-                            .WithEndAction(new Java.Lang.Runnable(onComplete));
+                            .SetListener(new EndListener(newView, onComplete));
                     break;
 
                 case AnimationType.WhirlIn:
                 case AnimationType.WhirlIn3:
                     animator.Alpha(1f).ScaleX(1f).ScaleY(1f).Rotation(0f)
-                            .WithEndAction(new Java.Lang.Runnable(onComplete));
+                            .SetListener(new EndListener(newView, onComplete));
                     break;
             }
 
@@ -769,12 +852,12 @@ namespace LightNavigation.Platform
             var oldAnimator = oldView.Animate()
                 .SetDuration(duration)
                 .SetInterpolator(interpolator)
-                .WithEndAction(new Java.Lang.Runnable(bothDone));
+                .SetListener(new EndListener(oldView, bothDone));
 
             var newAnimator = newView.Animate()
                 .SetDuration(duration)
                 .SetInterpolator(interpolator)
-                .WithEndAction(new Java.Lang.Runnable(bothDone));
+                .SetListener(new EndListener(newView, bothDone));
 
             switch (transition)
             {

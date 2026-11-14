@@ -12,7 +12,7 @@
 
     <!-- NuGet Package Metadata -->
     <PackageId>Plugin.Maui.LightNavigation</PackageId>
-    <Version>1.10.1.1</Version>
+    <Version>1.10.1.2</Version>
     <Product>Plugin.Maui.LightNavigation</Product>
     <Description>A subclassed NavigationPage for .NET MAUI with animated page transitions and navigation lifecycle callbacks.</Description>
     <Authors>Nick Kovalsky aka AppoMobi and contributors</Authors>
