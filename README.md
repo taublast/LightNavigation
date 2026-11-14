@@ -13,7 +13,11 @@ Android, iOS, MacCatalist, Windows, .net9 .net10.
 - **Queue-Based Navigation** - Prevents concurrent navigation operations issues
 - **Zero Dependencies** - No third-party libraries required
 
-## What's New 1.10.1.1
+## What's New 1.10.1.2
+* **Navigation always completes**, also when a transition animation is cancelled (Android) or the system skips it (iOS).
+* **Going back works** even when the app has already disconnected a page's handler.
+
+Previously, 1.10.1.1:
 * **Animations fixes** for animations consistency across platforms.
 * **.NET 10 support** thanks to [yurkinh](https://github.com/yurkinh) for the kick.
 
